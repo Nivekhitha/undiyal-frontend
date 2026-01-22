@@ -5,18 +5,71 @@ import '../../utils/constants.dart';
 import '../../models/transaction_model.dart';
 import '../../widgets/balance_card.dart';
 import '../../widgets/expense_tile.dart';
+import '../../services/transaction_storage_service.dart';
+import '../../services/app_init_service.dart';
 import 'home_widgets.dart';
 import '../add_expense/add_expense_screen.dart';
-import '../ transactions/transaction_detail_screen.dart';
+import '../transactions/transaction_detail_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<Transaction> _transactions = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  Future<void> _loadTransactions() async {
+    // 1. Load stored transactions first (fast)
+    final transactions = await TransactionStorageService.getAllTransactions();
+    if (mounted) {
+      setState(() {
+        _transactions = transactions;
+        _isLoading = false;
+      });
+    }
+
+    // 2. Schedule SMS scan for after the frame builds
+    // This prevents the UI from freezing during initial render
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _runBackgroundSmsScan();
+    });
+  }
+
+  Future<void> _runBackgroundSmsScan() async {
+    // Check permission first without requesting to minimize disruption
+    // Only request if we are sure we want to (or let AppInitService handle it gracefully)
+    await AppInitService.initialize();
+    
+    // Refresh to show new transactions
+    if (mounted) {
+      final updatedTransactions = await TransactionStorageService.getAllTransactions();
+      setState(() {
+        _transactions = updatedTransactions;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final transactions = Transaction.getDummyTransactions();
-    final recentTransactions = transactions.take(3).toList();
-    final weeklySpent = transactions
+    if (_isLoading) {
+      return const CupertinoPageScaffold(
+        backgroundColor: AppColors.background,
+        child: Center(child: CupertinoActivityIndicator()),
+      );
+    }
+
+    final recentTransactions = _transactions.take(3).toList();
+    final weeklySpent = _transactions
         .where((t) => DateTime.now().difference(t.date).inDays <= 7)
         .fold(0.0, (sum, t) => sum + t.amount);
 
@@ -132,21 +185,21 @@ class HomeScreen extends StatelessWidget {
               ),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ExpenseTile(
-                      transaction: recentTransactions[index],
-                      onTap: () {
-                        Navigator.of(context).push(
-                          CupertinoPageRoute(
-                            builder: (context) => TransactionDetailScreen(
-                              transaction: recentTransactions[index],
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: ExpenseTile(
+                        transaction: recentTransactions[index],
+                        onTap: () {
+                          Navigator.of(context).push(
+                            CupertinoPageRoute(
+                              builder: (context) => TransactionDetailScreen(
+                                transaction: recentTransactions[index],
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
+                          );
+                        },
+                      ),
+                    );
                 }, childCount: recentTransactions.length),
               ),
             ),

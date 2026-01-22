@@ -6,7 +6,14 @@ import '../../widgets/keypad.dart';
 import '../../widgets/category_chip.dart';
 
 class ManualEntryScreen extends StatefulWidget {
-  const ManualEntryScreen({super.key});
+  final double? initialAmount;
+  final DateTime? initialDate;
+
+  const ManualEntryScreen({
+    super.key,
+    this.initialAmount,
+    this.initialDate,
+  });
 
   @override
   State<ManualEntryScreen> createState() => _ManualEntryScreenState();
@@ -20,6 +27,21 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
   DateTime _selectedDate = DateTime.now();
 
   final _merchantController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialAmount != null) {
+      _amount = widget.initialAmount.toString();
+      // Remove trailing .0 if present for cleaner display
+      if (_amount.endsWith('.0')) {
+        _amount = _amount.substring(0, _amount.length - 2);
+      }
+    }
+    if (widget.initialDate != null) {
+      _selectedDate = widget.initialDate!;
+    }
+  }
 
   @override
   void dispose() {

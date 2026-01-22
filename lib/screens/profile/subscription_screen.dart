@@ -215,7 +215,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       '• 50 transactions per month\n• Basic analytics\n• Manual entry only',
                       style: AppTextStyles.caption,
                     ),
@@ -268,52 +268,52 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final isSelected = _selectedPlan == index;
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedPlan = index;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
+        onTap: () {
+          setState(() {
+            _selectedPlan = index;
+          });
+        },
+        child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : CupertinoColors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: AppTextStyles.body.copyWith(
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+                children: [
+                Text(
+                label,
+                style: AppTextStyles.body.copyWith(
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 color: isSelected
                     ? AppColors.textPrimary
                     : AppColors.textSecondary,
-              ),
+                ),
+                ),
+                  if (badge != null && isSelected) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        badge,
+                        style: AppTextStyles.label.copyWith(
+                          fontSize: 10,
+                          color: CupertinoColors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
             ),
-            if (badge != null && isSelected) ...[
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.success,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  badge,
-                  style: AppTextStyles.label.copyWith(
-                    fontSize: 10,
-                    color: CupertinoColors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ],
         ),
-      ),
     );
   }
 

@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
 import '../screens/add_expense/add_expense_screen.dart';
-import '../screens/ transactions/transaction_list_screen.dart';
+import '../screens/transactions/transaction_list_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../theme/app_colors.dart';
 
@@ -15,11 +15,11 @@ class BottomNavigation extends StatefulWidget {
 
 class _BottomNavigationState extends State<BottomNavigation> {
   final List<Widget> _screens = [
-    HomeScreen(),
-    AnalyticsScreen(),
-    AddExpenseScreen(),
+    const HomeScreen(),
+    const AnalyticsScreen(),
+    const AddExpenseScreen(),
     TransactionListScreen(),
-    ProfileScreen(),
+    const ProfileScreen(),
   ];
 
   @override

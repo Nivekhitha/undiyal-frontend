@@ -1,8 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/constants.dart';
 import '../../models/transaction_model.dart';
+import '../../services/transaction_storage_service.dart';
 import 'analytics_widgets.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -14,82 +16,143 @@ class AnalyticsScreen extends StatefulWidget {
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   int _selectedPeriod = 0; // 0: Week, 1: Month
+  List<Transaction> _transactions = [];
+  bool _isLoading = true;
+  final double _monthlyBudget = 15000.0; // Simulated user budget
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  Future<void> _loadTransactions() async {
+    final transactions = await TransactionStorageService.getAllTransactions();
+    if (mounted) {
+      setState(() {
+        _transactions = transactions;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final transactions = Transaction.getDummyTransactions();
-
-    // Calculate totals
-    final weekTotal = transactions
-        .where((t) => DateTime.now().difference(t.date).inDays <= 7)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    final monthTotal = transactions
-        .where((t) => DateTime.now().difference(t.date).inDays <= 30)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    final currentTotal = _selectedPeriod == 0 ? weekTotal : monthTotal;
-    final previousTotal =
-        _selectedPeriod == 0 ? 380.0 : 1250.0; // Dummy previous period
-    final percentageChange =
-        ((currentTotal - previousTotal) / previousTotal) * 100;
-
-    // Calculate category breakdown
-    final categoryTotals = <String, double>{};
-    for (var transaction in transactions) {
-      categoryTotals[transaction.category] =
-          (categoryTotals[transaction.category] ?? 0) + transaction.amount;
+    if (_isLoading) {
+      return const CupertinoPageScaffold(
+        backgroundColor: AppColors.background,
+        child: Center(child: CupertinoActivityIndicator()),
+      );
     }
 
+    // --- DATA CALCULATION ---
+    final now = DateTime.now();
+    final periodDuration = _selectedPeriod == 0 ? 7 : 30; // Days
+    
+    // Filter transactions for the selected period
+    final periodTransactions = _transactions.where((t) {
+      final difference = now.difference(t.date).inDays;
+      return difference < periodDuration && difference >= 0;
+    }).toList();
+
+    final totalSpent = periodTransactions.fold(0.0, (sum, t) => sum + t.amount);
+
+    // Prepare Chart Data
+    List<Map<String, dynamic>> chartData = [];
+    if (_selectedPeriod == 0) {
+      // WEEKLY: Show last 7 days (Mon-Sun or relative)
+      // We'll show last 7 days ending today
+      for (int i = 6; i >= 0; i--) {
+        final day = now.subtract(Duration(days: i));
+        final dayTransactions = periodTransactions.where((t) => 
+          t.date.year == day.year && t.date.month == day.month && t.date.day == day.day
+        );
+        final dayTotal = dayTransactions.fold(0.0, (sum, t) => sum + t.amount);
+        
+        // Label: "M", "T", "W"...
+        final weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+        final label = weekdays[day.weekday - 1];
+        
+        chartData.add({
+          'label': label,
+          'amount': dayTotal,
+          'isToday': i == 0,
+        });
+      }
+    } else {
+      // MONTHLY: Show last 4 weeks
+      for (int i = 3; i >= 0; i--) {
+         // Simplified 4-week split
+         final weekStart = now.subtract(Duration(days: (i * 7) + 6));
+         final weekEnd = now.subtract(Duration(days: i * 7));
+         
+         final weekTransactions = periodTransactions.where((t) => 
+            t.date.isAfter(weekStart.subtract(const Duration(seconds: 1))) && 
+            t.date.isBefore(weekEnd.add(const Duration(days: 1))) // Inclusiveish
+         );
+         
+         final weekTotal = weekTransactions.fold(0.0, (sum, t) => sum + t.amount);
+         
+         chartData.add({
+           'label': 'W${4-i}',
+           'amount': weekTotal,
+           'isToday': i == 0, // Highlight current week
+         });
+      }
+    }
+
+    // Category Breakdown
+    final categoryTotals = <String, double>{};
+    for (var t in periodTransactions) {
+      categoryTotals[t.category] = (categoryTotals[t.category] ?? 0) + t.amount;
+    }
     final sortedCategories = categoryTotals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       child: SafeArea(
         child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
-            // App Bar
+            // Header
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppConstants.screenPadding,
-                  16,
-                  AppConstants.screenPadding,
-                  16,
-                ),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Analytics',
-                      style: AppTextStyles.h2,
+                    Text('Analytics', style: AppTextStyles.h1),
+                    // Currency Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text('INR', style: AppTextStyles.label),
                     ),
                   ],
                 ),
               ),
             ),
-
-            // Period Selector
+            
+            // Toggle
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.screenPadding,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: CupertinoColors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFFE5E7EB),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: _buildPeriodButton('Week', 0),
-                      ),
-                      Expanded(
-                        child: _buildPeriodButton('Month', 1),
-                      ),
+                      _buildToggle('Week', 0),
+                      _buildToggle('Month', 1),
                     ],
                   ),
                 ),
@@ -98,239 +161,132 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-            // Total Spending Card
+            // Budget Ring
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.screenPadding,
-                ),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Spending',
-                        style: AppTextStyles.cardBody.copyWith(
-                          fontSize: 14,
-                          color: AppColors.textOnCard.withOpacity(0.7),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '₹${currentTotal.toStringAsFixed(2)}',
-                        style: AppTextStyles.h1.copyWith(
-                          color: AppColors.textOnCard,
-                          fontSize: 40,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Icon(
-                            percentageChange >= 0
-                                ? CupertinoIcons.arrow_up_right
-                                : CupertinoIcons.arrow_down_right,
-                            color: percentageChange >= 0
-                                ? AppColors.error
-                                : AppColors.success,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${percentageChange.abs().toStringAsFixed(1)}%',
-                            style: AppTextStyles.body.copyWith(
-                              color: percentageChange >= 0
-                                  ? AppColors.error
-                                  : AppColors.success,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            percentageChange >= 0
-                                ? 'more than last ${_selectedPeriod == 0 ? 'week' : 'month'}'
-                                : 'less than last ${_selectedPeriod == 0 ? 'week' : 'month'}',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textOnCard.withOpacity(0.7),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: BudgetRingCard(
+                  spent: totalSpent,
+                  budget: _selectedPeriod == 0 ? _monthlyBudget / 4 : _monthlyBudget,
                 ),
               ),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-            // Spending Chart
+            // Chart
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.screenPadding,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: SpendingTrendChart(data: chartData),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+            // Category Title
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
                   children: [
-                    Text(
-                      'Spending Trend',
-                      style: AppTextStyles.h3,
-                    ),
-                    const SizedBox(height: 16),
-                    SpendingTrendChart(
-                      isWeekly: _selectedPeriod == 0,
-                    ),
+                    Text('Breakdown', style: AppTextStyles.h3),
+                    const Spacer(),
+                    Text('Sort by date', style: AppTextStyles.caption), // Static for now
                   ],
                 ),
               ),
             ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-            // Category Breakdown
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.screenPadding,
-                ),
-                child: Text(
-                  'Category Breakdown',
-                  style: AppTextStyles.h3,
-                ),
-              ),
-            ),
-
+            
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-            // Category List
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppConstants.screenPadding,
-              ),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final category = sortedCategories[index];
-                    final percentage = (category.value / currentTotal) * 100;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: CategoryBreakdownTile(
-                        category: category.key,
-                        amount: category.value,
-                        percentage: percentage,
-                        onTap: () {
-                          _showCategoryDetail(
-                              context, category.key, category.value);
+            // Category List or Empty State
+            sortedCategories.isEmpty 
+             ? SliverToBoxAdapter(
+                 child: Padding(
+                   padding: const EdgeInsets.all(40),
+                   child: Column(
+                     children: [
+                       const Text('👀', style: TextStyle(fontSize: 48)),
+                       const SizedBox(height: 16),
+                       Text('No spending yet', style: AppTextStyles.h3),
+                       const SizedBox(height: 8),
+                       Text(
+                         'Start tracking to see your insights.',
+                         style: AppTextStyles.bodySecondary,
+                         textAlign: TextAlign.center,
+                       ),
+                     ],
+                   ),
+                 ),
+               )
+             : SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final cat = sortedCategories[index];
+                      final percentage = totalSpent > 0 ? (cat.value / totalSpent) * 100 : 0.0;
+                      
+                      // Staggered Animation Wrapper
+                      return TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        duration: Duration(milliseconds: 400 + (index * 100)),
+                        curve: Curves.easeOutQuad,
+                        builder: (context, value, child) {
+                          return Transform.translate(
+                            offset: Offset(0, 20 * (1 - value)),
+                            child: Opacity(
+                              opacity: value,
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: CategoryBreakdownTile(
+                                  category: cat.key,
+                                  amount: cat.value,
+                                  percentage: percentage,
+                                  onTap: () {},
+                                ),
+                              ),
+                            ),
+                          );
                         },
-                      ),
-                    );
-                  },
-                  childCount: sortedCategories.length,
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPeriodButton(String label, int index) {
-    final isSelected = _selectedPeriod == index;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedPeriod = index;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : CupertinoColors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: AppTextStyles.body.copyWith(
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color:
-                  isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showCategoryDetail(
-      BuildContext context, String category, double amount) {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (BuildContext context) => Container(
-        height: 300,
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: CupertinoColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.textSecondary.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              category,
-              style: AppTextStyles.h2,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Total spent: ₹${amount.toStringAsFixed(2)}',
-              style: AppTextStyles.bodySecondary,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'This category represents ${((amount / 295.79) * 100).toStringAsFixed(1)}% of your spending in this period.',
-              style: AppTextStyles.body,
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: CupertinoButton(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(12),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: Text(
-                  'Close',
-                  style: AppTextStyles.body.copyWith(
-                    fontWeight: FontWeight.w600,
+                      );
+                    },
+                    childCount: sortedCategories.length,
                   ),
                 ),
               ),
-            ),
+              
+              const SliverToBoxAdapter(child: SizedBox(height: 48)),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggle(String title, int index) {
+    final isSelected = _selectedPeriod == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedPeriod = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? CupertinoColors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected 
+              ? [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))] 
+              : null,
+          ),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body.copyWith(
+              fontWeight: FontWeight.w600,
+              color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+            ),
+          ),
         ),
       ),
     );

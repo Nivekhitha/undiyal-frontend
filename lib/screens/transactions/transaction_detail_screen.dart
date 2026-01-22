@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/constants.dart';
 import '../../models/transaction_model.dart';
+import '../../services/transaction_storage_service.dart';
 
 class TransactionDetailScreen extends StatefulWidget {
   final Transaction transaction;
@@ -19,11 +20,13 @@ class TransactionDetailScreen extends StatefulWidget {
 
 class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   bool _isRecurring = false;
+  late String _currentCategory;
 
   @override
   void initState() {
     super.initState();
     _isRecurring = widget.transaction.isRecurring;
+    _currentCategory = widget.transaction.category;
   }
 
   @override
@@ -96,12 +99,45 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        widget.transaction.category,
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.textOnCard.withOpacity(0.7),
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _currentCategory,
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.textOnCard.withOpacity(0.7),
+                            ),
+                          ),
+                          if (widget.transaction.isAutoDetected) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Auto',
+                                style: AppTextStyles.label.copyWith(
+                                  fontSize: 11,
+                                  color: AppColors.textOnCard,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
+                      if (widget.transaction.isAutoDetected && widget.transaction.confidenceScore != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Confidence: ${(widget.transaction.confidenceScore! * 100).toStringAsFixed(0)}%',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textOnCard.withOpacity(0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       Text(
                         '-₹${widget.transaction.amount.toStringAsFixed(2)}',
@@ -165,6 +201,63 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         valueColor: _getStatusColor(widget.transaction.status),
                       ),
                       const SizedBox(height: 16),
+                      // Category row with edit option for auto-detected transactions
+                      Row(
+                        children: [
+                          const Icon(
+                            CupertinoIcons.tag,
+                            size: 20,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Category',
+                                  style: AppTextStyles.caption,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _currentCategory,
+                                        style: AppTextStyles.body.copyWith(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    if (widget.transaction.isAutoDetected)
+                                      CupertinoButton(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: Size.zero,
+                                        onPressed: _showCategoryPicker,
+                                        child: Text(
+                                          'Edit',
+                                          style: AppTextStyles.body.copyWith(
+                                            color: AppColors.primary,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (widget.transaction.referenceNumber != null) ...[
+                        const SizedBox(height: 16),
+                        _buildDetailRow(
+                          icon: CupertinoIcons.number,
+                          label: 'Reference',
+                          value: widget.transaction.referenceNumber!,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
                       _buildDetailRow(
                         icon: CupertinoIcons.number,
                         label: 'Transaction ID',
@@ -213,7 +306,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     CupertinoIcons.doc_text,
                                     size: 48,
                                     color: AppColors.textSecondary,
@@ -290,7 +383,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       ),
                       CupertinoSwitch(
                         value: _isRecurring,
-                        activeColor: AppColors.primary,
+                        activeTrackColor: AppColors.primary,
                         onChanged: (value) {
                           setState(() {
                             _isRecurring = value;
@@ -478,28 +571,28 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     showCupertinoModalPopup(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: const Text('Transaction Options'),
+        title: Text('Transaction Options'),
         actions: [
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(context).pop();
               _editTransaction(context);
             },
-            child: const Text('Edit Transaction'),
+            child: Text('Edit Transaction'),
           ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(context).pop();
               _shareTransaction(context);
             },
-            child: const Text('Share Transaction'),
+            child: Text('Share Transaction'),
           ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.of(context).pop();
               _viewReceipt(context);
             },
-            child: const Text('View Receipt'),
+            child: Text('View Receipt'),
           ),
           CupertinoActionSheetAction(
             isDestructiveAction: true,
@@ -524,12 +617,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Edit Transaction'),
-        content: const Text('Transaction editing feature coming soon!'),
+        title: Text('Edit Transaction'),
+        content: Text('Transaction editing feature coming soon!'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: Text('OK'),
           ),
         ],
       ),
@@ -540,13 +633,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Delete Transaction'),
-        content: const Text(
+        title: Text('Delete Transaction'),
+        content: Text(
             'Are you sure you want to delete this transaction? This action cannot be undone.'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
@@ -554,7 +647,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               Navigator.of(context).pop(); // Close dialog
               Navigator.of(context).pop(); // Go back to list
             },
-            child: const Text('Delete'),
+            child: Text('Delete'),
           ),
         ],
       ),
@@ -565,14 +658,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Share Transaction'),
+        title: Text('Share Transaction'),
         content: Text(
           'Share: ${widget.transaction.merchant} - ₹${widget.transaction.amount.toStringAsFixed(2)}',
         ),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: Text('OK'),
           ),
         ],
       ),
@@ -617,7 +710,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         CupertinoIcons.doc_text,
                         size: 80,
                         color: AppColors.textSecondary,
@@ -638,6 +731,44 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showCategoryPicker() {
+    const categories = AppConstants.categories;
+    
+    showCupertinoModalPopup(
+      context: context,
+      builder: (BuildContext context) => CupertinoActionSheet(
+        title: const Text('Select Category'),
+        actions: categories.map((category) {
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _currentCategory = category;
+              });
+              // Update transaction category
+              TransactionStorageService.updateTransactionCategory(
+                widget.transaction.id,
+                category,
+              );
+            },
+            child: Text(
+              category,
+              style: TextStyle(
+                fontWeight: _currentCategory == category ? FontWeight.w600 : FontWeight.normal,
+                color: _currentCategory == category ? AppColors.primary : null,
+              ),
+            ),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
         ),
       ),
     );

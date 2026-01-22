@@ -12,11 +12,16 @@ dependencies:
   cupertino_icons: ^1.0.2
   http: ^1.1.0
   shared_preferences: ^2.2.2
+  permission_handler: ^11.3.0
+  flutter_sms_inbox: ^1.0.4
+  flutter_local_notifications: ^19.5.0
+  google_fonts: ^7.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true

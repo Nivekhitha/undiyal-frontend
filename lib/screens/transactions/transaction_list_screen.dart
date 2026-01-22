@@ -5,6 +5,7 @@ import '../../utils/constants.dart';
 import '../../models/transaction_model.dart';
 import '../../widgets/expense_tile.dart';
 import 'transaction_detail_screen.dart';
+import '../../services/transaction_storage_service.dart';
 
 class TransactionListScreen extends StatefulWidget {
   const TransactionListScreen({super.key});
@@ -17,6 +18,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   String _searchQuery = '';
   String _selectedFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
+  List<Transaction> _transactions = [];
+  bool _isLoading = true;
 
   final List<String> _filterOptions = [
     'All',
@@ -29,6 +32,20 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  Future<void> _loadTransactions() async {
+    final transactions = await TransactionStorageService.getAllTransactions();
+    setState(() {
+      _transactions = transactions;
+      _isLoading = false;
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -36,10 +53,15 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final allTransactions = Transaction.getDummyTransactions();
+    if (_isLoading) {
+      return const CupertinoPageScaffold(
+        backgroundColor: AppColors.background,
+        child: Center(child: CupertinoActivityIndicator()),
+      );
+    }
 
     // Apply filters
-    List<Transaction> filteredTransactions = allTransactions.where((transaction) {
+    List<Transaction> filteredTransactions = _transactions.where((transaction) {
       final matchesSearch = transaction.merchant
           .toLowerCase()
           .contains(_searchQuery.toLowerCase()) ||
@@ -364,7 +386,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               color: AppColors.primary.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               CupertinoIcons.search,
               size: 48,
               color: AppColors.textSecondary,

@@ -90,11 +90,11 @@ class _SplashScreenState extends State<SplashScreen>
                       Container(
                         width: 120,
                         height: 120,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppColors.textPrimary,
                           shape: BoxShape.circle,
                         ),
-                        child: Center(
+                        child: const Center(
                           child: Icon(
                             CupertinoIcons.money_dollar_circle_fill,
                             size: 70,

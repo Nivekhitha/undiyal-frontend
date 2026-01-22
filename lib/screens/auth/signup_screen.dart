@@ -4,6 +4,7 @@ import '../../theme/app_text_styles.dart';
 import '../../utils/constants.dart';
 import '../../services/auth_service.dart';
 import 'login_screen.dart';
+import '../../navigation/bottom_nav.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -71,28 +72,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
 
-      // Show success message and navigate to login
+      // Navigate directly to Home screen (BottomNavigation)
       if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (context) => CupertinoAlertDialog(
-            title: const Text('Success'),
-            content: const Text('Account created successfully! Please log in.'),
-            actions: [
-              CupertinoDialogAction(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  // Navigate to login screen
-                  Navigator.of(context).pushReplacement(
-                    CupertinoPageRoute(
-                      builder: (context) => const LoginScreen(),
-                    ),
-                  );
-                },
-                child: const Text('OK'),
-              ),
-            ],
+        Navigator.of(context).pushAndRemoveUntil(
+          CupertinoPageRoute(
+            builder: (context) => const BottomNavigation(),
           ),
+          (route) => false,
         );
       }
     } catch (e) {
@@ -135,7 +121,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: Container(
                   width: 100,
                   height: 100,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),

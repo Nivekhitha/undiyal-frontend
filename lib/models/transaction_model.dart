@@ -8,6 +8,9 @@ class Transaction {
   final String status;
   final String? receiptUrl;
   final bool isRecurring;
+  final bool isAutoDetected; // True if detected from SMS
+  final String? referenceNumber; // SMS transaction reference
+  final double? confidenceScore; // AI categorization confidence (0-1)
 
   Transaction({
     required this.id,
@@ -19,52 +22,10 @@ class Transaction {
     this.status = 'completed',
     this.receiptUrl,
     this.isRecurring = false,
+    this.isAutoDetected = false,
+    this.referenceNumber,
+    this.confidenceScore,
   });
 
-  static List<Transaction> getDummyTransactions() {
-    final now = DateTime.now();
-    return [
-      Transaction(
-        id: '1',
-        amount: 45.50,
-        merchant: 'Starbucks',
-        category: 'Food & Drink',
-        date: now,
-        paymentMethod: 'Credit Card',
-      ),
-      Transaction(
-        id: '2',
-        amount: 120.00,
-        merchant: 'Nike Store',
-        category: 'Shopping',
-        date: now.subtract(const Duration(days: 1)),
-        paymentMethod: 'Debit Card',
-      ),
-      Transaction(
-        id: '3',
-        amount: 12.99,
-        merchant: 'Netflix',
-        category: 'Entertainment',
-        date: now.subtract(const Duration(days: 2)),
-        paymentMethod: 'Credit Card',
-        isRecurring: true,
-      ),
-      Transaction(
-        id: '4',
-        amount: 85.30,
-        merchant: 'Target',
-        category: 'Groceries',
-        date: now.subtract(const Duration(days: 3)),
-        paymentMethod: 'Cash',
-      ),
-      Transaction(
-        id: '5',
-        amount: 32.00,
-        merchant: 'Uber',
-        category: 'Transport',
-        date: now.subtract(const Duration(days: 4)),
-        paymentMethod: 'Credit Card',
-      ),
-    ];
-  }
+
 }

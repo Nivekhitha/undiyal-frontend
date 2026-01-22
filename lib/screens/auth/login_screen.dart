@@ -61,10 +61,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Navigate to home screen (main app)
       if (mounted) {
-        Navigator.of(context).pushReplacement(
+        Navigator.of(context).pushAndRemoveUntil(
           CupertinoPageRoute(
             builder: (context) => const BottomNavigation(),
           ),
+          (route) => false,
         );
       }
     } catch (e) {
@@ -107,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Container(
                   width: 100,
                   height: 100,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),

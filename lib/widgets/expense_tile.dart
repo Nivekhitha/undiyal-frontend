@@ -66,11 +66,33 @@ class ExpenseTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
                     transaction.merchant,
                     style: AppTextStyles.body.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
+                        ),
+                      ),
+                      if (transaction.isAutoDetected)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Auto',
+                            style: AppTextStyles.label.copyWith(
+                              fontSize: 10,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

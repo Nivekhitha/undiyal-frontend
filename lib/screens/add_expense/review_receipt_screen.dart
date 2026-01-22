@@ -12,11 +12,11 @@ class ReviewReceiptScreen extends StatefulWidget {
 }
 
 class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
-  // Extracted fields (simulated)
-  final _amountController = TextEditingController(text: '45.50');
-  final _merchantController = TextEditingController(text: 'Starbucks');
-  String _selectedCategory = 'Food & Drink';
-  String _selectedPaymentMethod = 'Credit Card';
+  // Extracted fields
+  final _amountController = TextEditingController();
+  final _merchantController = TextEditingController();
+  String _selectedCategory = 'Others';
+  String _selectedPaymentMethod = 'Cash';
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -87,7 +87,7 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(
+                          const Icon(
                             CupertinoIcons.checkmark_circle_fill,
                             color: AppColors.success,
                             size: 24,
@@ -116,20 +116,22 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
                         color: CupertinoColors.systemGrey5,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            CupertinoIcons.doc_text,
-                            size: 48,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Receipt Preview',
-                            style: AppTextStyles.caption,
-                          ),
-                        ],
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              CupertinoIcons.doc_text,
+                              size: 48,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Receipt Preview',
+                              style: AppTextStyles.caption,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 

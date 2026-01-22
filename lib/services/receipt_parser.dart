@@ -4,14 +4,15 @@ class ReceiptParser {
     // Simulate processing delay
     await Future.delayed(const Duration(seconds: 2));
 
-    // Return dummy extracted data
+    // Return empty data - force user to enter details
+    // In a real app, this would use OCR
     return {
-      'amount': '45.50',
-      'merchant': 'Starbucks',
-      'category': 'Food & Drink',
+      'amount': null,
+      'merchant': '',
+      'category': 'Others',
       'date': DateTime.now(),
-      'paymentMethod': 'Credit Card',
-      'confidence': 0.95,
+      'paymentMethod': 'Cash',
+      'confidence': 0.0,
     };
   }
 
@@ -20,13 +21,13 @@ class ReceiptParser {
     await Future.delayed(const Duration(seconds: 2));
 
     return {
-      'amount': '45.50',
-      'merchant': 'Starbucks',
-      'category': 'Food & Drink',
+      'amount': null,
+      'merchant': '',
+      'category': 'Others',
       'date': DateTime.now(),
-      'paymentMethod': 'Credit Card',
-      'confidence': 0.95,
-      'receiptImagePath': 'assets/dummy_receipt.jpg', // Placeholder
+      'paymentMethod': 'Cash',
+      'confidence': 0.0,
+      'receiptImagePath': null,
     };
   }
 

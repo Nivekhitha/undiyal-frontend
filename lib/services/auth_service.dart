@@ -3,10 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  // Base URL - For Android emulator, use 10.0.2.2 instead of 127.0.0.1
-  static const String baseUrl = 'http://10.0.2.2:8000';
-  // For iOS simulator or web, use:
-  // static const String baseUrl = 'http://127.0.0.1:8000';
+  // Base URL for the deployed backend
+  static const String baseUrl = 'https://undiyal-backend-8zqj.onrender.com';
 
   /// Sign up a new user (POST /auth/register)
   static Future<Map<String, dynamic>> signUp({
@@ -104,4 +102,5 @@ class AuthService {
     await prefs.remove('user_id');
   }
 }
+
 

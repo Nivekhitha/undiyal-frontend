@@ -69,7 +69,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                             child: Container(
                               width: 40,
                               height: 40,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 border: Border(
                                   top: BorderSide(
                                     color: AppColors.primary,
@@ -89,7 +89,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                             child: Container(
                               width: 40,
                               height: 40,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 border: Border(
                                   top: BorderSide(
                                     color: AppColors.primary,
@@ -109,7 +109,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                             child: Container(
                               width: 40,
                               height: 40,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 border: Border(
                                   bottom: BorderSide(
                                     color: AppColors.primary,
@@ -129,7 +129,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                             child: Container(
                               width: 40,
                               height: 40,
-                              decoration: BoxDecoration(
+                              decoration: const BoxDecoration(
                                 border: Border(
                                   bottom: BorderSide(
                                     color: AppColors.primary,
@@ -155,7 +155,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                     ),
                   ] else ...[
                     // Scanning indicator
-                    CupertinoActivityIndicator(
+                    const CupertinoActivityIndicator(
                       radius: 20,
                       color: AppColors.primary,
                     ),

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
-import 'screens/auth/signup_screen.dart';
+import 'screens/auth/auth_gate.dart';
 import 'theme/app_colors.dart';
+import 'utils/globals.dart';
 
 class UndiyalApp extends StatelessWidget {
   const UndiyalApp({super.key});
@@ -9,7 +10,7 @@ class UndiyalApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoApp(
       title: 'Undiyal',
-      theme: const CupertinoThemeData(
+      theme: CupertinoThemeData(
         primaryColor: AppColors.primary,
         scaffoldBackgroundColor: AppColors.background,
         barBackgroundColor: AppColors.background,
@@ -18,7 +19,8 @@ class UndiyalApp extends StatelessWidget {
           textStyle: TextStyle(color: AppColors.textPrimary),
         ),
       ),
-      home: const SignUpScreen(),
+      navigatorKey: navigatorKey,
+      home: const AuthGate(),
       debugShowCheckedModeBanner: false,
     );
   }

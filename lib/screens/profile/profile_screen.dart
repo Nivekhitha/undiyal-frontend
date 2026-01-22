@@ -73,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Container(
                         width: 80,
                         height: 80,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: AppColors.primary,
                           shape: BoxShape.circle,
                         ),
@@ -252,7 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             title: 'Notifications',
                             trailing: CupertinoSwitch(
                               value: _notificationsEnabled,
-                              activeColor: AppColors.primary,
+                              activeTrackColor: AppColors.primary,
                               onChanged: (value) {
                                 setState(() {
                                   _notificationsEnabled = value;
@@ -266,7 +266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             title: 'Biometric Lock',
                             trailing: CupertinoSwitch(
                               value: _biometricEnabled,
-                              activeColor: AppColors.primary,
+                              activeTrackColor: AppColors.primary,
                               onChanged: (value) {
                                 setState(() {
                                   _biometricEnabled = value;
@@ -309,7 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
+                          gradient: const LinearGradient(
                             colors: [
                               AppColors.primary,
                               AppColors.primaryDark,
@@ -557,12 +557,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Edit Profile'),
-        content: const Text('Profile editing feature coming soon!'),
+        title: Text('Edit Profile'),
+        content: Text('Profile editing feature coming soon!'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: Text('OK'),
           ),
         ],
       ),
@@ -583,7 +583,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 CupertinoButton(
-                  child: const Text('Cancel'),
+                  child: Text('Cancel'),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
                 Text(
@@ -593,7 +593,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 CupertinoButton(
-                  child: const Text('Done'),
+                  child: Text('Done'),
                   onPressed: () {
                     setState(() {
                       _monthlyBudget = tempBudget;
@@ -641,7 +641,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 CupertinoButton(
-                  child: const Text('Cancel'),
+                  child: Text('Cancel'),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
                 Text(
@@ -651,7 +651,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 CupertinoButton(
-                  child: const Text('Done'),
+                  child: Text('Done'),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -688,11 +688,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: Text(feature),
-        content: const Text('This feature is coming soon!'),
+        content: Text('This feature is coming soon!'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: Text('OK'),
           ),
         ],
       ),
@@ -703,14 +703,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('About Undiyal'),
-        content: const Text(
+        title: Text('About Undiyal'),
+        content: Text(
           'Undiyal v1.0.0\n\nA student-focused personal finance app that helps you track expenses with minimal effort.\n\nMade with ❤️ for students.',
         ),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: Text('OK'),
           ),
         ],
       ),
@@ -721,12 +721,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text('Logout'),
+        content: Text('Are you sure you want to logout?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
@@ -734,7 +734,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.of(context).pop();
               // Handle logout logic
             },
-            child: const Text('Logout'),
+            child: Text('Logout'),
           ),
         ],
       ),
