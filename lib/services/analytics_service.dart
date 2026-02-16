@@ -12,9 +12,9 @@ class AnalyticsService {
     final budget = await getBudget();
     final now = DateTime.now();
     
-    // Filter for current month
+    // Filter for current month - ONLY expenses, not credits
     final thisMonthTransactions = transactions.where((t) => 
-      t.date.year == now.year && t.date.month == now.month
+      t.type == 'expense' && t.date.year == now.year && t.date.month == now.month
     ).toList();
 
     final totalSpent = thisMonthTransactions.fold(0.0, (sum, t) => sum + t.amount);
@@ -40,12 +40,13 @@ class AnalyticsService {
     };
   }
 
-  /// Get today's total spent
+  /// Get today's total spent (expenses only)
   static Future<double> getTodaySpent() async {
     final transactions = await TransactionStorageService.getAllTransactions();
     final now = DateTime.now();
     return transactions
         .where((t) => 
+          t.type == 'expense' &&
           t.date.year == now.year && 
           t.date.month == now.month && 
           t.date.day == now.day)
@@ -78,6 +79,7 @@ class AnalyticsService {
       final day = now.subtract(Duration(days: i));
       final dayTotal = transactions
           .where((t) => 
+            t.type == 'expense' &&
             t.date.year == day.year && t.date.month == day.month && t.date.day == day.day)
           .fold<double>(0.0, (sum, t) => sum + (t.amount));
 

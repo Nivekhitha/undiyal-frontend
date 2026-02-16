@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../theme/app_colors.dart';
+import '../../services/app_init_service.dart';
 
 class PermissionRequestScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -66,6 +67,10 @@ class _PermissionRequestScreenState extends State<PermissionRequestScreen> {
 
     // Require both permissions to proceed
     if (_smsGranted && _notificationGranted) {
+      // Automatically start SMS detection
+      debugPrint('Permissions granted - starting SMS detection...');
+      await AppInitService.initializeSmsDetection();
+
       widget.onComplete();
     }
   }

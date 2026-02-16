@@ -2,6 +2,12 @@
     <!-- SMS Permission for expense detection -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Required for Android 13+ (API 33) to show foreground service notification -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Required for Android 14+ (API 34) for foreground services -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     
     <!-- Notification Listener Permission for SMS detection -->
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
@@ -29,6 +35,19 @@
         android:label="Undiyal"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
+
+
+        <service android:name="im.zoe.labs.flutter_notification_listener.NotificationsHandlerService"
+    android:label="Flutter Notifications Handler"
+    android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+    android:exported="true"
+    android:foregroundServiceType="specialUse">
+    <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="notification_listener"/>
+    <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+    </intent-filter>
+</service>
         <activity
             android:name=".MainActivity"
             android:exported="true"

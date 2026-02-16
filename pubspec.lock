@@ -222,6 +222,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.3"
+  flutter_notification_listener:
+    dependency: "direct main"
+    description:
+      name: flutter_notification_listener
+      sha256: da24858c65ab02f6cddad88c06ae45885c514e131f5a6c47c471e7260d3bca51
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.0"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:
@@ -257,7 +265,7 @@ packages:
     source: hosted
     version: "6.3.2"
   google_generative_ai:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: google_generative_ai
       sha256: "71f613d0247968992ad87a0eb21650a566869757442ba55a31a81be6746e0d1f"
@@ -481,7 +489,7 @@ packages:
     source: hosted
     version: "2.0.0"
   path:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -709,6 +717,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
+  syncfusion_flutter_core:
+    dependency: transitive
+    description:
+      name: syncfusion_flutter_core
+      sha256: "2d878bce96c4fd1092205a4f72b328f7f05d86b27c3bd55db7fd440e6017352a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "31.1.19"
+  syncfusion_flutter_datepicker:
+    dependency: "direct main"
+    description:
+      name: syncfusion_flutter_datepicker
+      sha256: bbd2135dcfed085fca2296a9b1492b2ecf1d288e5aa0758d8827ece58e26df0b
+      url: "https://pub.dev"
+    source: hosted
+    version: "31.1.19"
   term_glyph:
     dependency: transitive
     description:

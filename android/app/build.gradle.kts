@@ -38,8 +38,9 @@ android {
         release {
             // Use debug signing for release builds to avoid certificate issues
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true  // Enable ProGuard/R8 code shrinking
+            isShrinkResources = true  // Enable resource shrinking
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
         debug {
             isMinifyEnabled = false

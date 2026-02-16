@@ -8,10 +8,11 @@ import '../../widgets/balance_card.dart';
 import '../../widgets/expense_tile.dart';
 import '../../services/transaction_storage_service.dart';
 import '../../services/balance_sms_parser.dart';
-import '../../services/app_init_service.dart';
+import '../../services/sms_notification_listener.dart';
 import 'home_widgets.dart';
 import '../../screens/bank/bank_balance_setup_screen.dart';
 import '../transactions/transaction_detail_screen.dart';
+import '../transactions/transaction_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _bankName = '';
   bool _isLoading = true;
   StreamSubscription<Map<String, dynamic>>? _balanceUpdateSubscription;
+  StreamSubscription<Map<String, dynamic>>? _smsStreamSubscription;
+  StreamSubscription<Transaction>? _expenseUpdateSubscription;
+  StreamSubscription<Transaction>? _localAddSubscription;
   String _selectedTransactionType = 'expense'; // 'expense' or 'credit'
 
   @override
@@ -34,12 +38,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadTransactions();
     _subscribeToBalanceUpdates();
+    _subscribeToSmsStream();
+    _subscribeToExpenseUpdates();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _balanceUpdateSubscription?.cancel();
+    _smsStreamSubscription?.cancel();
+    _expenseUpdateSubscription?.cancel();
+    _localAddSubscription?.cancel();
     super.dispose();
   }
 
@@ -77,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 1. Load stored transactions first (fast)
     final transactions = await TransactionStorageService.getAllTransactions();
     
-    // 2. Load bank balance from SMS detection
+    // 2. Load bank balance from NOTIFICATION LISTENER only
     final balanceData = await BalanceSmsParser.getLastBalance();
     
     if (mounted) {
@@ -90,25 +99,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _isLoading = false;
       });
     }
+    
+    // NO SMS SCAN - only notification listener should handle real-time updates
+  }
 
-    // 2. Schedule SMS scan for after the frame builds
-    // This prevents the UI from freezing during initial render
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _runBackgroundSmsScan();
+  /// Subscribe to SMS notification stream for real-time transaction updates
+  void _subscribeToSmsStream() {
+    final listener = SmsNotificationListener();
+    _smsStreamSubscription = listener.smsStream.listen((smsData) async {
+      debugPrint('📱 HomeScreen received SMS stream event');
+      // Refresh transactions when new SMS is processed
+      await _refreshTransactions();
     });
   }
 
-  Future<void> _runBackgroundSmsScan() async {
-    // Check permission first without requesting to minimize disruption
-    // Only request if we are sure we want to (or let AppInitService handle it gracefully)
-    await AppInitService.initialize();
-    
-    // Refresh to show new transactions
+  /// Subscribe to real-time expense updates
+  void _subscribeToExpenseUpdates() {
+    _expenseUpdateSubscription = SmsNotificationListener.onExpenseUpdate.listen((transaction) {
+      debugPrint('🟢 Real-time expense event received: ${transaction.merchant} - ₹${transaction.amount}');
+      if (mounted) {
+        setState(() {
+          _transactions.insert(0, transaction); // Add newest transaction to top
+        });
+      }
+    });
+
+    // Also listen for manual/local transactions added elsewhere
+    _localAddSubscription = TransactionStorageService.onTransactionAdded.listen((transaction) {
+      debugPrint('🟡 Local transaction added: ${transaction.merchant} - ₹${transaction.amount}');
+      if (mounted) {
+        setState(() {
+          _transactions.insert(0, transaction);
+        });
+      }
+    });
+  }
+
+  /// Refresh transactions from storage
+  Future<void> _refreshTransactions() async {
+    final transactions = await TransactionStorageService.getAllTransactions();
     if (mounted) {
-      final updatedTransactions = await TransactionStorageService.getAllTransactions();
       setState(() {
-        _transactions = updatedTransactions;
+        _transactions = transactions;
       });
+      debugPrint('✅ HomeScreen transactions refreshed: ${transactions.length} items');
     }
   }
 
@@ -124,7 +158,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Calculate dynamic values
     final balance = _bankBalance; // Default to 0 until bank balance is set up
     final weeklySpent = _transactions
-        .where((t) => DateTime.now().difference(t.date).inDays <= 7)
+        .where((t) => t.type == 'expense' && DateTime.now().difference(t.date).inDays <= 7)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    // Calculate weekly credits separately
+    final weeklyCredits = _transactions
+        .where((t) => t.type == 'credit' && DateTime.now().difference(t.date).inDays <= 7)
         .fold(0.0, (sum, t) => sum + t.amount);
     
     // Filter transactions by type
@@ -218,7 +257,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(AppConstants.screenPadding),
-                child: BalanceCard(balance: balance, weeklySpent: weeklySpent, bankName: _bankName),
+                child: BalanceCard(
+                  balance: balance, 
+                  weeklySpent: weeklySpent, 
+                  weeklyCredits: weeklyCredits,
+                  bankName: _bankName
+                ),
               ),
             ),
 
@@ -256,7 +300,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Text('Recent Transactions', style: AppTextStyles.h3),
                         GestureDetector(
                           onTap: () {
-                            // Navigate to full history (handled by tab bar)
+                            // Navigate to full history page
+                            Navigator.of(context).push(
+                              CupertinoPageRoute(builder: (context) => const TransactionListScreen()),
+                            );
                           },
                           child: Text(
                             'See All',

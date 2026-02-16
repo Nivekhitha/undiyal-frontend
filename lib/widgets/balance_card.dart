@@ -6,12 +6,14 @@ import '../utils/constants.dart';
 class BalanceCard extends StatelessWidget {
   final double balance;
   final double weeklySpent;
+  final double weeklyCredits;
   final String? bankName;
 
   const BalanceCard({
     super.key,
     required this.balance,
     required this.weeklySpent,
+    required this.weeklyCredits,
     this.bankName,
   });
 

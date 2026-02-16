@@ -1,14 +1,17 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service to parse bank balance SMS messages
 class BalanceSmsParser {
   /// Stream controller for balance updates
-  static final StreamController<Map<String, dynamic>> _balanceUpdateController = 
+  static final StreamController<Map<String, dynamic>> _balanceUpdateController =
       StreamController<Map<String, dynamic>>.broadcast();
-  
+
   /// Stream that emits when a new balance is detected
-  static Stream<Map<String, dynamic>> get onBalanceUpdate => _balanceUpdateController.stream;
+  static Stream<Map<String, dynamic>> get onBalanceUpdate =>
+      _balanceUpdateController.stream;
+
   /// Bank patterns for balance detection - improved regex for various SMS formats
   static final Map<String, RegExp> _bankPatterns = {
     'BOB': RegExp(
@@ -24,15 +27,15 @@ class BalanceSmsParser {
       caseSensitive: false,
     ),
     'HDFC': RegExp(
-      r'(?:Available\s*Balance|Avail\s*Bal|balance).*?(?:INR|Rs\.?)\s*([0-9,]+(?:\.\d{1,2})?)',
+      r'(?:avl\.?\s*bal|available\s*bal(?:ance)?)\s*(?:is)?\s*(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.\d{1,2})?)',
       caseSensitive: false,
     ),
     'AXIS': RegExp(
-      r'(?:Available\s*Balance|Avail\s*Bal).*?(?:INR|Rs\.?)\s*([0-9,]+(?:\.\d{1,2})?)',
+      r'(?:avail(?:able)?\s*bal(?:ance)?)\s*(?:is)?\s*(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.\d{1,2})?)',
       caseSensitive: false,
     ),
     'SBI': RegExp(
-      r'(?:Avl\s*Bal|Available\s*Balance|A\/c\s*Bal).*?(?:Rs\.?|INR)\s*([0-9,]+(?:\.\d{1,2})?)',
+      r'(?:avl\.?\s*bal|a\/c\s*bal)\s*(?:in\s*a\/c\s*\w+)?\s*(?:is)?\s*(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.\d{1,2})?)',
       caseSensitive: false,
     ),
   };
@@ -55,10 +58,53 @@ class BalanceSmsParser {
 
     // Keywords that indicate a balance SMS
     final balanceKeywords = [
-      'balance', 'avail bal', 'available balance', 'avl bal', 
-      'clear bal', 'a/c bal', 'account balance', 'bal:', 'balance:'
+      // Standard
+      'available balance',
+      'avail balance',
+      'avail bal',
+      'avl bal',
+      'avlbal',
+      'avl bal:',
+      'avl bal is',
+
+      // Account variations
+      'a/c bal',
+      'a/c balance',
+      'account balance',
+      'acct balance',
+      'ac balance',
+
+      // Short formats
+      'bal:',
+      'bal :',
+      'bal is',
+      'bal amt',
+      'bal amount',
+
+      // Banking terms
+      'clear bal',
+      'cleared balance',
+      'closing bal',
+      'closing balance',
+
+      'current bal',
+      'current balance',
+      'net bal',
+
+      // SMS style compact forms
+      'avl.bal',
+      'avl_bal',
+      'availbal',
+      'avbl bal',
+
+      // Sentences banks use
+      'is your available balance',
+      'has an available balance of',
+      'your account balance is',
+      'balance in your account is',
+      'remaining balance is'
     ];
-    
+
     // Check if this is a balance message
     bool isBalanceMessage = false;
     for (final keyword in balanceKeywords) {
@@ -67,7 +113,7 @@ class BalanceSmsParser {
         break;
       }
     }
-    
+
     if (!isBalanceMessage) {
       // Check sender patterns too
       final bankSenders = ['sbi', 'hdfc', 'axis', 'bob', 'iob', 'cub', 'bank'];
@@ -148,6 +194,11 @@ class BalanceSmsParser {
     }
 
     // Fallback: try to find any amount near balance keywords
+    // ONLY if balance keywords were actually found in the message.
+    // Without this guard, debit/credit transaction SMS from bank senders
+    // would be falsely detected as balance updates.
+    if (!isBalanceMessage) return null;
+
     final fallbackPattern = RegExp(
       r'(?:rs\.?|inr)\s*([0-9,]+(?:\.\d{1,2})?)',
       caseSensitive: false,
@@ -173,8 +224,9 @@ class BalanceSmsParser {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('bank_balance_$bank', balance);
     await prefs.setString('bank_balance_last_bank', bank);
-    await prefs.setInt('bank_balance_timestamp', DateTime.now().millisecondsSinceEpoch);
-    
+    await prefs.setInt(
+        'bank_balance_timestamp', DateTime.now().millisecondsSinceEpoch);
+
     // Notify listeners about the new balance
     _balanceUpdateController.add({
       'bank': bank,
@@ -233,6 +285,65 @@ class BalanceSmsParser {
     await prefs.remove('bank_balance_last_bank');
     await prefs.remove('bank_balance_timestamp');
   }
+
+  // /// Debug function to test balance parsing with sample SMS
+  // static Future<void> testBalanceParsing() async {
+  //   final testSmsMessages = [
+  //     // HDFC Bank
+  //     {'body': 'HDFC Bank: Your A/c XX1234 debited by Rs.500.00 on 15/01/24. Avl Bal Rs.5,000.00. Call 18002586161 for queries.', 'sender': 'HDFC'},
+  //     {'body': 'HDFC Bank: Your A/c XX1234 credited by Rs.1,000.00 on 16/01/24. Avl Bal Rs.6,000.00. Call 18002586161 for queries.', 'sender': 'HDFC'},
+
+  //     // SBI Bank
+  //     {'body': 'SBI: Acct XX5678 debited Rs.250.00 on 15/01/24 Avl Bal Rs.10,500.00 CR. SMS BLOCK 9223000333', 'sender': 'SBI'},
+  //     {'body': 'SBI: Acct XX5678 credited Rs.500.00 on 16/01/24 Avl Bal Rs.11,000.00 CR. SMS BLOCK 9223000333', 'sender': 'SBI'},
+
+  //     // ICICI Bank
+  //     {'body': 'ICICI Bank: Rs.300.00 debited from A/c XX9012 on 15/01/24. Avl Bal Rs.8,700.00. For queries, call 18002662.', 'sender': 'ICICI'},
+  //     {'body': 'ICICI Bank: Rs.1,200.00 credited to A/c XX9012 on 16/01/24. Avl Bal Rs.9,900.00. For queries, call 18002662.', 'sender': 'ICICI'},
+
+  //     // Axis Bank
+  //     {'body': 'AXIS: Acct XX3456 debited INR 450.00 on 15/01/24. Avl Bal INR 15,550.00. Call 18605005555 for balance info.', 'sender': 'AXIS'},
+  //     {'body': 'AXIS: Acct XX3456 credited INR 800.00 on 16/01/24. Avl Bal INR 16,350.00. Call 18605005555 for balance info.', 'sender': 'AXIS'},
+
+  //     // Bank of Baroda
+  //     {'body': 'BOB: Clear Bal Rs.12,000.00 in A/c XX7890 as on 15/01/24. MConnect+ for more details.', 'sender': 'BOB'},
+  //     {'body': 'BOB: Ac XX7890 credited Rs.2,000.00 on 16/01/24. Clear Bal Rs.14,000.00. MConnect+ for more details.', 'sender': 'BOB'},
+  //   ];
+
+  //   debugPrint('=== BALANCE SMS PARSING TEST ===');
+  //   for (var i = 0; i < testSmsMessages.length; i++) {
+  //     final sms = testSmsMessages[i];
+  //     final body = sms['body'] as String;
+  //     final sender = sms['sender'] as String;
+
+  //     debugPrint('\n--- Test SMS ${i + 1} ---');
+  //     debugPrint('Sender: $sender');
+  //     debugPrint('Body: $body');
+
+  //     final result = parseBalanceSms(body, sender);
+  //     if (result != null) {
+  //       debugPrint('✅ DETECTED: Bank=${result['bank']}, Balance=₹${result['balance']}');
+
+  //       // Test storage
+  //       await storeBalance(result['bank'] as String, result['balance'] as double);
+  //       debugPrint('✅ STORED: Balance saved for ${result['bank']}');
+  //     } else {
+  //       debugPrint('❌ NOT DETECTED: Not a balance SMS');
+  //     }
+  //   }
+
+  //   // Test retrieval
+  //   debugPrint('\n--- TESTING BALANCE RETRIEVAL ---');
+  //   final allBalances = await getAllBalances();
+  //   debugPrint('Stored balances: $allBalances');
+
+  //   final lastBalance = await getLastBalance();
+  //   if (lastBalance != null) {
+  //     debugPrint('Last balance: ${lastBalance['bank']} - ₹${lastBalance['balance']}');
+  //   }
+
+  //   debugPrint('=== BALANCE SMS PARSING TEST COMPLETED ===');
+  // }
 
   /// Format bank code to full name
   static String getBankFullName(String code) {

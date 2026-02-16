@@ -5,8 +5,8 @@ import '../../services/biometric_service.dart';
 import 'signup_screen.dart';
 import '../../navigation/bottom_nav.dart';
 import '../permissions/permission_request_screen.dart';
+import '../onboarding/value_proposition_screen.dart';
 import '../bank/bank_balance_setup_screen.dart';
-import '../settings/sms_notification_settings_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -28,6 +28,7 @@ class _AuthGateState extends State<AuthGate> {
   Future<Map<String, dynamic>> _checkAuthAndPermissions() async {
     final userId = await AuthService.getUserId();
     final prefs = await SharedPreferences.getInstance();
+    final hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
     final hasRequestedPermissions = prefs.getBool('has_requested_permissions') ?? false;
     final hasCompletedBankSetup = prefs.getBool('has_completed_bank_setup') ?? false;
     final biometricEnabled = prefs.getBool('biometric_enabled') ?? false;
@@ -40,6 +41,7 @@ class _AuthGateState extends State<AuthGate> {
     
     return {
       'userId': userId,
+      'hasCompletedOnboarding': hasCompletedOnboarding,
       'hasRequestedPermissions': hasRequestedPermissions,
       'hasCompletedBankSetup': hasCompletedBankSetup,
       'requiresBiometric': requiresBiometric,
@@ -51,13 +53,11 @@ class _AuthGateState extends State<AuthGate> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('has_requested_permissions', true);
     
-    // Navigate to SMS notification settings for real-time detection
+    // Refresh the state to navigate to next screen
     if (mounted) {
-      Navigator.of(context).pushReplacement(
-        CupertinoPageRoute(
-          builder: (context) => const SmsNotificationSettingsScreen(),
-        ),
-      );
+      setState(() {
+        _initFuture = _checkAuthAndPermissions();
+      });
     }
   }
 
@@ -66,9 +66,11 @@ class _AuthGateState extends State<AuthGate> {
     await prefs.setBool('has_completed_bank_setup', true);
     
     // Refresh the state to navigate to home
-    setState(() {
-      _initFuture = _checkAuthAndPermissions();
-    });
+    if (mounted) {
+      setState(() {
+        _initFuture = _checkAuthAndPermissions();
+      });
+    }
   }
 
   Future<void> _onBankSetupSkip() async {
@@ -77,9 +79,11 @@ class _AuthGateState extends State<AuthGate> {
     await prefs.setBool('skipped_bank_setup', true); // Remember they skipped
     
     // Refresh the state to navigate to home
-    setState(() {
-      _initFuture = _checkAuthAndPermissions();
-    });
+    if (mounted) {
+      setState(() {
+        _initFuture = _checkAuthAndPermissions();
+      });
+    }
   }
 
   @override
@@ -98,6 +102,7 @@ class _AuthGateState extends State<AuthGate> {
 
         final data = snapshot.data;
         final userId = data?['userId'];
+        final hasCompletedOnboarding = data?['hasCompletedOnboarding'] ?? false;
         final hasRequestedPermissions = data?['hasRequestedPermissions'] ?? false;
         final hasCompletedBankSetup = data?['hasCompletedBankSetup'] ?? false;
         final requiresBiometric = data?['requiresBiometric'] ?? false;
@@ -113,14 +118,19 @@ class _AuthGateState extends State<AuthGate> {
           return _buildBiometricAuthScreen();
         }
 
-        // If user exists but hasn't been asked for permissions, show permission screen
+        // If user exists but hasn't completed onboarding, show value proposition
+        if (!hasCompletedOnboarding) {
+          return const ValuePropositionScreen();
+        }
+
+        // If user completed onboarding but hasn't been asked for permissions, show permission screen
         if (!hasRequestedPermissions) {
           return PermissionRequestScreen(
             onComplete: _onPermissionsComplete,
           );
         }
 
-        // If permissions granted but bank setup not completed, show bank setup (optional)
+        // If permissions granted but bank setup not completed, show bank setup screen
         if (!hasCompletedBankSetup) {
           return BankBalanceSetupScreen(
             onComplete: _onBankSetupComplete,

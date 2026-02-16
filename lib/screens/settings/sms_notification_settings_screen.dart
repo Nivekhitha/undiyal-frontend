@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../theme/app_colors.dart';
 import '../../services/sms_notification_listener.dart';
 
@@ -12,6 +13,8 @@ class SmsNotificationSettingsScreen extends StatefulWidget {
 class _SmsNotificationSettingsScreenState extends State<SmsNotificationSettingsScreen> {
   bool _isEnabled = false;
   bool _isLoading = false;
+  bool _smsPermissionGranted = false;
+  bool _isRequestingSmsPermission = false;
 
   @override
   void initState() {
@@ -24,9 +27,12 @@ class _SmsNotificationSettingsScreenState extends State<SmsNotificationSettingsS
       _isLoading = true;
     });
     
-    final enabled = await SmsNotificationListener.isListenerEnabled();
+    final enabled = await SmsNotificationListener().isListenerEnabled();
+    final smsStatus = await Permission.sms.status;
+    
     setState(() {
       _isEnabled = enabled;
+      _smsPermissionGranted = smsStatus.isGranted;
       _isLoading = false;
     });
   }
@@ -36,7 +42,7 @@ class _SmsNotificationSettingsScreenState extends State<SmsNotificationSettingsS
       _isLoading = true;
     });
 
-    final success = await SmsNotificationListener.setListenerEnabled(enabled);
+    final success = await SmsNotificationListener().setListenerEnabled(enabled);
     
     setState(() {
       _isEnabled = enabled;
@@ -64,9 +70,82 @@ class _SmsNotificationSettingsScreenState extends State<SmsNotificationSettingsS
     }
   }
 
+  Future<void> _requestSmsPermission() async {
+    setState(() {
+      _isRequestingSmsPermission = true;
+    });
+
+    final status = await Permission.sms.status;
+
+    if (status.isGranted) {
+      setState(() {
+        _smsPermissionGranted = true;
+        _isRequestingSmsPermission = false;
+      });
+      return;
+    }
+
+    if (status.isPermanentlyDenied) {
+      // Show dialog to open settings
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('SMS Permission Required'),
+            content: const Text(
+              'SMS permission is required to scan your inbox for transactions. Please enable it in Settings.',
+            ),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('Cancel'),
+                onPressed: () => Navigator.pop(context),
+              ),
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                child: const Text('Open Settings'),
+                onPressed: () {
+                  Navigator.pop(context);
+                  openAppSettings();
+                },
+              ),
+            ],
+          ),
+        );
+      }
+      setState(() => _isRequestingSmsPermission = false);
+      return;
+    }
+
+    // Request permission
+    final result = await Permission.sms.request();
+    setState(() {
+      _smsPermissionGranted = result.isGranted;
+      _isRequestingSmsPermission = false;
+    });
+
+    if (result.isGranted) {
+      // Show success message
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Permission Granted'),
+            content: const Text('SMS permission granted! You can now scan your inbox for transactions.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _openSystemSettings() async {
-    await SmsNotificationListener.openNotificationSettings();
-    
+    await SmsNotificationListener().openNotificationSettings();
+
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -197,6 +276,69 @@ class _SmsNotificationSettingsScreenState extends State<SmsNotificationSettingsS
                       onChanged: _isLoading ? null : _toggleListener,
                       activeColor: AppColors.primary,
                     ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // SMS Permission Section
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.systemGrey4.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'SMS Inbox Access',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _smsPermissionGranted
+                                ? 'SMS permission granted - can scan inbox for transactions'
+                                : 'SMS permission required to scan inbox for missed transactions',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    if (!_smsPermissionGranted)
+                      CupertinoButton.filled(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        onPressed: _isRequestingSmsPermission ? null : _requestSmsPermission,
+                        child: _isRequestingSmsPermission
+                            ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+                            : const Text('Grant'),
+                      )
+                    else
+                      const Icon(
+                        CupertinoIcons.check_mark_circled_solid,
+                        color: CupertinoColors.systemGreen,
+                        size: 24,
+                      ),
                   ],
                 ),
               ),

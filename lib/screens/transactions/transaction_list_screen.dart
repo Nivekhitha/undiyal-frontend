@@ -6,6 +6,8 @@ import '../../models/transaction_model.dart';
 import '../../widgets/expense_tile.dart';
 import 'transaction_detail_screen.dart';
 import '../../services/transaction_storage_service.dart';
+import '../../services/sms_notification_listener.dart';
+import 'dart:async';
 
 class TransactionListScreen extends StatefulWidget {
   const TransactionListScreen({super.key});
@@ -21,6 +23,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   List<Transaction> _transactions = [];
   bool _isLoading = true;
 
+  StreamSubscription<Transaction>? _expenseSub;
+
   final List<String> _filterOptions = [
     'All',
     'Food & Drink',
@@ -35,6 +39,15 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   void initState() {
     super.initState();
     _loadTransactions();
+    // Listen for real-time expense events so the history updates automatically
+    _expenseSub = SmsNotificationListener.onExpenseUpdate.listen((tx) {
+      final exists = _transactions.any((t) => t.id == tx.id);
+      if (!exists) {
+        setState(() {
+          _transactions.insert(0, tx);
+        });
+      }
+    });
   }
 
   Future<void> _loadTransactions() async {
@@ -47,6 +60,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
   @override
   void dispose() {
+    _expenseSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }

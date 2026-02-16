@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/constants.dart';
@@ -7,6 +8,7 @@ import '../../widgets/category_chip.dart';
 import '../../models/transaction_model.dart';
 import '../../services/transaction_storage_service.dart';
 import '../../navigation/bottom_nav.dart';
+import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 import 'dart:math';
 
 class ManualEntryScreen extends StatefulWidget {
@@ -382,43 +384,82 @@ class _ManualEntryScreenState extends State<ManualEntryScreen> {
     );
   }
 
-  void _showDatePicker() {
-    showCupertinoModalPopup(
+  void _showDatePicker() async {
+    // Use a local variable inside the modal so selection isn't lost
+    DateTime tempSelected = _selectedDate;
+
+    final result = await showCupertinoModalPopup<DateTime>(
       context: context,
-      builder: (BuildContext context) => Container(
-        height: 300,
-        color: CupertinoColors.white,
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                CupertinoButton(
-                  child: const Text('Cancel'),
-                  onPressed: () => Navigator.of(context).pop(),
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: 420,
+              decoration: BoxDecoration(
+                color: CupertinoColors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
                 ),
-                CupertinoButton(
-                  child: const Text('Done'),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.date,
-                initialDateTime: _selectedDate,
-                maximumDate: DateTime.now(),
-                onDateTimeChanged: (DateTime newDate) {
-                  setState(() {
-                    _selectedDate = newDate;
-                  });
-                },
               ),
-            ),
-          ],
-        ),
-      ),
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          child: const Text('Cancel'),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                        const Text(
+                          'Select Date',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          child: const Text('Done'),
+                          onPressed: () => Navigator.of(ctx).pop(tempSelected),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Syncfusion Date Picker
+                  Expanded(
+                    child: SfDateRangePicker(
+                      view: DateRangePickerView.month,
+                      selectionMode: DateRangePickerSelectionMode.single,
+                      initialSelectedDate: tempSelected,
+                      maxDate: DateTime.now(),
+                      onSelectionChanged:
+                          (DateRangePickerSelectionChangedArgs args) {
+                        if (args.value is DateTime) {
+                          setModalState(() {
+                            tempSelected = args.value as DateTime;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
+
+    if (result != null) {
+      setState(() {
+        _selectedDate = result;
+      });
+    }
   }
 
   String _formatDate(DateTime date) {

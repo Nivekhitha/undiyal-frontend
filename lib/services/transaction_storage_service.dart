@@ -1,10 +1,18 @@
 import '../models/transaction_model.dart';
 import 'sms_expense_service.dart';
 import 'expense_service.dart';
+import '../models/transaction_model.dart';
+import 'dart:async';
 
 /// Service to manage stored transactions
 /// Provides unified access to transactions across the app
 class TransactionStorageService {
+  // Stream for notifying when a transaction is added locally
+  static final StreamController<Transaction> _transactionAddedController =
+      StreamController<Transaction>.broadcast();
+
+  static Stream<Transaction> get onTransactionAdded => _transactionAddedController.stream;
+
   /// Get all transactions
   static Future<List<Transaction>> getAllTransactions() async {
     // 1. Get stored transactions (SMS + Manual Local)
@@ -45,6 +53,11 @@ class TransactionStorageService {
     final existingTransactions = await SmsExpenseService.getStoredTransactions();
     existingTransactions.add(transaction);
     await SmsExpenseService.saveTransactions(existingTransactions);
+
+    // Notify listeners that a transaction was added
+    try {
+      _transactionAddedController.add(transaction);
+    } catch (_) {}
 
     // 2. Sync to backend
     await ExpenseService.addExpense(transaction);

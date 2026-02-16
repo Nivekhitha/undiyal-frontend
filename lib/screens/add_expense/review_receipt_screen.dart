@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 
 import '../../theme/app_colors.dart';
@@ -7,6 +8,8 @@ import '../../utils/constants.dart';
 import '../../widgets/category_chip.dart';
 import '../../models/transaction_model.dart';
 import '../../services/transaction_storage_service.dart';
+import '../../services/receipt_scan_service.dart';
+import '../../services/sms_expense_service.dart';
 import '../../navigation/bottom_nav.dart';
 import 'dart:math';
 
@@ -37,16 +40,104 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
   }
 
   Future<void> _processReceipt(String path) async {
-    // API REMOVED: Integration with Gemini has been removed.
-    // Users will now manually enter details from the image.
-    // Future integration with local OCR planned.
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        // Pre-fill date to today
-        _selectedDate = DateTime.now();
-      });
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final file = File(path);
+      final resp = await ReceiptScanService.scanReceiptFromFile(file);
+
+      if (resp['success'] == true && resp['data'] != null) {
+        // Attempt to extract model text output (first choice text) or parse JSON
+        String modelText = '';
+        final data = resp['data'];
+        if (data is Map<String, dynamic>) {
+          // Common OpenAI-style response: choices[0].message.content or choices[0].text
+          if (data.containsKey('choices')) {
+            final choices = data['choices'];
+            if (choices is List && choices.isNotEmpty) {
+              final c0 = choices[0];
+              if (c0 is Map && c0.containsKey('message')) {
+                final msg = c0['message'];
+                if (msg is Map && msg.containsKey('content')) modelText = msg['content'].toString();
+              } else if (c0 is Map && c0.containsKey('text')) {
+                modelText = c0['text'].toString();
+              }
+            }
+          } else if (data.containsKey('text') && data['text'] is String) {
+            modelText = data['text'];
+          } else {
+            modelText = data.toString();
+          }
+        } else if (data is String) {
+          modelText = data;
+        }
+
+        // Try to find JSON object in modelText
+        Map<String, dynamic>? jsonObj;
+        try {
+          final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(modelText);
+          if (jsonMatch != null) {
+            final jsonStr = jsonMatch.group(0)!;
+            jsonObj = jsonDecode(jsonStr) as Map<String, dynamic>;
+          } else {
+            // Try direct parse
+            jsonObj = jsonDecode(modelText) as Map<String, dynamic>;
+          }
+        } catch (_) {
+          jsonObj = null;
+        }
+
+        String ocrText = modelText;
+
+        if (jsonObj != null) {
+          // Fill fields from JSON if present
+          if (jsonObj.containsKey('amount')) {
+            final rawAmt = jsonObj['amount'].toString();
+            final cleaned = rawAmt.replaceAll(RegExp(r'[^0-9\.]'), '');
+            final val = double.tryParse(cleaned) ?? 0.0;
+            if (val > 0) _amountController.text = val.toStringAsFixed(2);
+          }
+          if (jsonObj.containsKey('merchant')) _merchantController.text = jsonObj['merchant'].toString();
+          if (jsonObj.containsKey('date')) {
+            try {
+              final d = DateTime.parse(jsonObj['date'].toString());
+              _selectedDate = d;
+            } catch (_) {}
+          }
+          if (jsonObj.containsKey('raw_text')) ocrText = jsonObj['raw_text'].toString();
+        } else {
+          // Fallback: simple heuristics on modelText
+          final amtRegex = RegExp(r'(?:₹|rs\.?|inr)?\s*([0-9]{1,3}(?:[,\s][0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)', caseSensitive: false);
+          final m = amtRegex.firstMatch(ocrText);
+          if (m != null) {
+            final amtStr = m.group(1) ?? '';
+            final cleaned = amtStr.replaceAll(RegExp(r'[ ,]'), '');
+            final amt = double.tryParse(cleaned) ?? 0.0;
+            if (amt > 0) _amountController.text = amt.toStringAsFixed(2);
+          }
+
+          final lines = ocrText.split(RegExp(r'\r?\n')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+          for (var line in lines) {
+            if (line.length > 3 && !RegExp(r'^[₹Rsrsinr0-9\s\.,]+\$?', caseSensitive: false).hasMatch(line)) {
+              _merchantController.text = line;
+              break;
+            }
+          }
+        }
+      } else {
+        // Not successful - leave fields for manual edit
+      }
+    } catch (e) {
+      debugPrint('Receipt scanning error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

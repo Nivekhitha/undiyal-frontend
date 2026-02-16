@@ -48,7 +48,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
           BottomNavigationBarItem(
             icon: Container(
               width: 48,
-              height: 48,
+              height: 50,
               decoration: BoxDecoration(
                 color: const Color(0xFF1E3A8A), // Dark blue background
                 shape: BoxShape.circle,

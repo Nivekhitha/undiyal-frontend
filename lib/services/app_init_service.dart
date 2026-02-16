@@ -1,9 +1,12 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
 import 'notification_service.dart';
 import 'sms_expense_service.dart';
 import 'transaction_storage_service.dart';
+import '../services/balance_sms_parser.dart';
+import '../services/sms_notification_listener.dart';
 
 /// Service to initialize app and read SMS on launch
 class AppInitService {
@@ -33,10 +36,28 @@ class AppInitService {
       await NotificationService.initialize();
       debugPrint('Notification service initialized');
 
+      // Start SMS notification listener if previously enabled
+      final smsListener = SmsNotificationListener();
+      await smsListener.initialize();
+      // Ensure listener runs by default: enable listener preference and start service.
+      try {
+        await smsListener.setListenerEnabled(true);
+        debugPrint('SMS notification listener set to enabled by default');
+      } catch (e) {
+        debugPrint('Could not enable SMS notification listener by default: $e');
+      }
+      debugPrint('SMS notification listener initialized');
+
       // Request SMS permission
       final smsPermissionGranted =
           await SmsExpenseService.requestSmsPermission();
       debugPrint('SMS permission granted: $smsPermissionGranted');
+
+      // Run a one-time inbox scan after permission is granted
+      if (smsPermissionGranted) {
+        debugPrint('Running one-time SMS inbox scan after permission grant...');
+        await AppInitService.initializeSmsDetection();
+      }
     } catch (e) {
       debugPrint('Error initializing app services: $e');
     }
@@ -50,9 +71,6 @@ class AppInitService {
 
       if (hasPermission) {
         debugPrint('SMS permission granted, detecting expenses...');
-
-        // DEBUG: Run test parsing first
-        await SmsExpenseService.debugTestSmsParsing();
 
         // Calculate messages from current month for comprehensive analysis
         final now = DateTime.now();

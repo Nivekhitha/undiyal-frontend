@@ -3,6 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../services/sms_expense_service.dart';
+import '../../services/balance_sms_parser.dart';
+import '../../services/sms_notification_listener.dart';
+import 'dart:convert';
 import '../../models/transaction_model.dart';
 
 class SmsDebugScreen extends StatefulWidget {
@@ -16,6 +19,8 @@ class _SmsDebugScreenState extends State<SmsDebugScreen> {
   bool _isRunning = false;
   List<Transaction> _detectedTransactions = [];
   String _debugLog = '';
+  final TextEditingController _sampleBodyController = TextEditingController();
+  final TextEditingController _sampleSenderController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +47,29 @@ class _SmsDebugScreenState extends State<SmsDebugScreen> {
                 child: _isRunning
                     ? const CupertinoActivityIndicator(color: CupertinoColors.white)
                     : const Text('Test SMS Parsing'),
+              ),
+              const SizedBox(height: 12),
+
+              // Sample SMS input for balance test
+              CupertinoTextField(
+                controller: _sampleBodyController,
+                placeholder: 'Paste sample SMS body here',
+                maxLines: 2,
+              ),
+              const SizedBox(height: 8),
+              CupertinoTextField(
+                controller: _sampleSenderController,
+                placeholder: 'Sender (e.g. HDFC, SBI)',
+              ),
+              const SizedBox(height: 8),
+              CupertinoButton(
+                onPressed: _isRunning ? null : _testBalanceParsing,
+                child: const Text('Parse Balance from Sample SMS'),
+              ),
+              const SizedBox(height: 12),
+              CupertinoButton(
+                onPressed: _isRunning ? null : _checkListenerStatus,
+                child: const Text('Check Listener Status'),
               ),
               const SizedBox(height: 12),
               
@@ -161,7 +189,6 @@ class _SmsDebugScreenState extends State<SmsDebugScreen> {
     });
 
     try {
-      await SmsExpenseService.debugTestSmsParsing();
       setState(() {
         _debugLog += '\nSMS parsing test completed!\n';
         _debugLog += 'Check the console logs for detailed output.\n';
@@ -169,6 +196,58 @@ class _SmsDebugScreenState extends State<SmsDebugScreen> {
     } catch (e) {
       setState(() {
         _debugLog += '\nError: $e\n';
+      });
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
+  }
+
+  Future<void> _testBalanceParsing() async {
+    final body = _sampleBodyController.text.trim();
+    final sender = _sampleSenderController.text.trim();
+    setState(() {
+      _isRunning = true;
+      _debugLog = 'Parsing sample SMS for balance...\n';
+    });
+
+    try {
+      final result = BalanceSmsParser.parseBalanceSms(body, sender.isEmpty ? null : sender);
+      if (result != null) {
+        setState(() {
+          _debugLog += '✅ Detected balance: ${result['balance']} for bank ${result['bank']}\n';
+          _debugLog += 'Raw amount: ${result['rawAmount']}\n';
+        });
+      } else {
+        setState(() {
+          _debugLog += '❌ No balance detected in sample SMS.\n';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _debugLog += 'Error parsing sample SMS: $e\n';
+      });
+    } finally {
+      setState(() {
+        _isRunning = false;
+      });
+    }
+  }
+
+  Future<void> _checkListenerStatus() async {
+    setState(() {
+      _isRunning = true;
+      _debugLog = 'Checking listener status...\n';
+    });
+    try {
+      final status = await SmsNotificationListener.getListenerStatus();
+      setState(() {
+        _debugLog += 'Listener status: ${status.toString()}\n';
+      });
+    } catch (e) {
+      setState(() {
+        _debugLog += 'Error checking listener status: $e\n';
       });
     } finally {
       setState(() {
