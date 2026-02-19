@@ -192,3 +192,19 @@ bool hasNotif = await PermissionChecker.hasNotificationPermission();
 - `lib/services/notification_service.dart` - Notification permission handling
 - `lib/services/sms_expense_service.dart` - SMS permission handling
 - `lib/utils/permission_checker.dart` - Permission utility functions
+
+
+Updated App Flow
+Splash Screen
+  └─ First launch? → NotificationListenerPermissionScreen (NEW)
+  │                    • Explains why notification access is needed
+  │                    • Opens Android system settings for notification listener
+  │                    • Auto-detects when user returns from settings
+  │                    • Skip option available
+  │                    └─ AuthGate
+  └─ Returning user? → AuthGate (directly)
+                          ├─ No account → SignUpScreen / LoginScreen
+                          ├─ !onboarded → ValuePropositionScreen (simplified, no permission logic)
+                          ├─ !permissions → PermissionRequestScreen (SMS + Notifications)
+                          ├─ !bankSetup → BankBalanceSetupScreen
+                          └─ All done → Home

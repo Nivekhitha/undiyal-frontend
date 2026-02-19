@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/sms_notification_listener.dart';
 import '../auth/auth_gate.dart';
 
 class ValuePropositionScreen extends StatefulWidget {
@@ -11,120 +10,10 @@ class ValuePropositionScreen extends StatefulWidget {
 }
 
 class _ValuePropositionScreenState extends State<ValuePropositionScreen> {
-  bool _isLoading = false;
-  bool _hasNotificationAccess = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkNotificationAccess();
-  }
-
-  Future<void> _checkNotificationAccess() async {
-    final hasListener = await SmsNotificationListener().isListenerEnabled();
-    final hasPermission = await SmsNotificationListener.hasNotificationPermission();
-    debugPrint('Onboarding: hasListener=$hasListener, hasPermission=$hasPermission');
-    final access = hasListener || hasPermission;
-    setState(() {
-      _hasNotificationAccess = access;
-    });
-    // If access is granted, auto-navigate to AuthGate
-    if (access && mounted) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('has_completed_onboarding', true);
-      Navigator.of(context).pushReplacement(
-        CupertinoPageRoute(
-          builder: (context) => const AuthGate(),
-        ),
-      );
-    }
-  }
-
-  Future<void> _onEnableNotifications() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await SmsNotificationListener().openNotificationSettings();
-      
-      // Wait for user to return from settings
-      await Future.delayed(const Duration(seconds: 2));
-      
-      // Check if access was granted
-      final hasAccess = await SmsNotificationListener().isListenerEnabled();
-      
-      if (hasAccess) {
-        // Mark onboarding as complete
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('has_completed_onboarding', true);
-        
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            CupertinoPageRoute(
-              builder: (context) => const AuthGate(),
-            ),
-          );
-        }
-      } else {
-        // Show error if access not granted
-        if (mounted) {
-          showCupertinoDialog(
-            context: context,
-            builder: (context) => CupertinoAlertDialog(
-              title: const Text('Notification Access Required'),
-              content: const Text('To automatically track expenses from SMS notifications, please enable notification access in your device settings.'),
-              actions: [
-                CupertinoDialogAction(
-                  child: const Text('Try Again'),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                CupertinoDialogAction(
-                  child: const Text('Skip'),
-                  onPressed: () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('has_completed_onboarding', true);
-                    if (mounted) {
-                      Navigator.of(context).pushReplacement(
-                        CupertinoPageRoute(
-                          builder: (context) => const AuthGate(),
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ],
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        showCupertinoDialog(
-          context: context,
-          builder: (context) => CupertinoAlertDialog(
-            title: const Text('Error'),
-            content: Text('Unable to open settings: $e'),
-            actions: [
-              CupertinoDialogAction(
-                child: const Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
-      }
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _onSkip() async {
+  Future<void> _onContinue() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('has_completed_onboarding', true);
-    
+
     if (mounted) {
       Navigator.of(context).pushReplacement(
         CupertinoPageRoute(
@@ -205,88 +94,16 @@ class _ValuePropositionScreenState extends State<ValuePropositionScreen> {
                 ),
               ),
               
-              // Status Section
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _hasNotificationAccess 
-                      ? CupertinoColors.systemGreen.withOpacity(0.1)
-                      : CupertinoColors.systemOrange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _hasNotificationAccess 
-                        ? CupertinoColors.systemGreen
-                        : CupertinoColors.systemOrange,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _hasNotificationAccess 
-                          ? CupertinoIcons.checkmark_circle_fill
-                          : CupertinoIcons.exclamationmark_triangle_fill,
-                      color: _hasNotificationAccess 
-                          ? CupertinoColors.systemGreen
-                          : CupertinoColors.systemOrange,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _hasNotificationAccess 
-                            ? 'Notification access is enabled'
-                            : 'Notification access is required for automatic expense tracking',
-                        style: TextStyle(
-                          color: _hasNotificationAccess 
-                              ? CupertinoColors.systemGreen
-                              : CupertinoColors.systemOrange,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 24),
+
+              // Continue button
+              SizedBox(
+                width: double.infinity,
+                child: CupertinoButton.filled(
+                  onPressed: _onContinue,
+                  child: const Text('Get Started'),
                 ),
               ),
-              
-              const SizedBox(height: 24),
-              
-              // Action Buttons
-              if (!_hasNotificationAccess) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: CupertinoButton.filled(
-                    onPressed: _isLoading ? null : _onEnableNotifications,
-                    child: _isLoading 
-                        ? const CupertinoActivityIndicator()
-                        : const Text('Enable Notification Access'),
-                  ),
-                ),
-                
-                const SizedBox(height: 12),
-                
-                SizedBox(
-                  width: double.infinity,
-                  child: CupertinoButton(
-                    onPressed: _onSkip,
-                    child: const Text('Skip for Now'),
-                  ),
-                ),
-              ] else ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: CupertinoButton.filled(
-                    onPressed: () {
-                      Navigator.of(context).pushReplacement(
-                        CupertinoPageRoute(
-                          builder: (context) => const AuthGate(),
-                        ),
-                      );
-                    },
-                    child: const Text('Continue'),
-                  ),
-                ),
-              ],
             ],
           ),
         ),

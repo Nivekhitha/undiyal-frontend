@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_notification_listener/flutter_notification_listener.dart';
 import 'sms_expense_service.dart';
 import 'balance_sms_parser.dart';
+import 'balance_detection_mode_service.dart';
 import 'notification_service.dart';
 import '../models/transaction_model.dart';
 
@@ -28,6 +29,7 @@ class SmsNotificationListener {
     static Stream<Transaction> get onExpenseUpdate =>
       _expenseUpdateController.stream;
   static const String _listenerEnabledKey = 'sms_listener_enabled';
+  static bool _isProcessingBalanceMessage = false;
   
   @pragma('vm:entry-point')
   static final SmsNotificationListener _instance = SmsNotificationListener._internal();
@@ -349,45 +351,61 @@ class SmsNotificationListener {
         return;
       }
 
-      // Check if it's a balance SMS first
-      final balanceData = BalanceSmsParser.parseBalanceSms(body, sender);
-      if (balanceData != null) {
-        debugPrint(
-            '✅ BALANCE SMS: ${balanceData['bank']} - Rs.${balanceData['balance']}');
-        await BalanceSmsParser.storeBalance(
-          balanceData['bank'] as String,
-          balanceData['balance'] as double,
-        );
+      // Balance Setup Mode (user-triggered): attempt BALANCE-ONLY parse
+      // while still allowing normal transaction parsing to continue.
+      final waitingSession = await BalanceDetectionModeService.getActiveSession();
+      if (waitingSession != null && BalanceSmsParser.isBalanceOnlySms(body)) {
+        if (_isProcessingBalanceMessage) {
+          debugPrint('⏳ Balance detection already in progress, skipping balance-only event');
+          return;
+        }
 
-        // Show notification for balance update
-        await NotificationService.showBalanceNotification(
-          bank: balanceData['bank'] as String,
-          balance: balanceData['balance'] as double,
-        );
-        debugPrint('✅ Balance processed and stored');
-        return;
+        final balanceData = BalanceSmsParser.parseBalanceSms(body, sender);
+        if (balanceData != null) {
+          final detectedBank = balanceData['bank'] as String? ?? '';
+          if (detectedBank != 'Unknown' && detectedBank != waitingSession.bankCode) {
+            debugPrint(
+                'ℹ️ Waiting for ${waitingSession.bankCode}, received $detectedBank. Ignored.');
+          } else {
+            _isProcessingBalanceMessage = true;
+            try {
+              final balance = balanceData['balance'] as double;
+              final fingerprint =
+                  '${waitingSession.bankCode}|$balance|${body.hashCode}|${sender.toLowerCase()}';
+              final shouldProcess =
+                  await BalanceDetectionModeService.tryMarkProcessedFingerprint(
+                fingerprint,
+              );
+
+              if (!shouldProcess) {
+                debugPrint('ℹ️ Duplicate balance event ignored');
+                return;
+              }
+
+              await BalanceSmsParser.storeBalance(waitingSession.bankCode, balance);
+              await NotificationService.showBalanceNotification(
+                bank: waitingSession.bankCode,
+                balance: balance,
+              );
+
+              await BalanceDetectionModeService.stopWaitingForBalance();
+              debugPrint(
+                  '✅ Balance stored for ${waitingSession.bankCode}; waiting mode reset');
+              return;
+            } finally {
+              _isProcessingBalanceMessage = false;
+            }
+          }
+        }
+        // If balance-only SMS couldn't be parsed, fall through.
       }
 
-      // If not a balance SMS, check if it's a transaction SMS with balance info
-      // Parse for expense (with sender info for better filtering)
+      // Transaction Mode (default): parse only transaction details.
+      // Ignore any available balance values in these messages.
       final parsedData = SmsExpenseService.parseSmsForExpense(body, sender: sender);
       if (parsedData != null) {
         debugPrint(
             '✅ EXPENSE SMS: ${parsedData['merchant']} - Rs.${parsedData['amount']}');
-
-        // Try to extract balance from the same SMS (for transaction messages that mention balance)
-        final balanceInTxn = BalanceSmsParser.parseBalanceSms(body, sender);
-        if (balanceInTxn != null) {
-          debugPrint('💡 Balance info found in transaction SMS: ${balanceInTxn['bank']} - Rs.${balanceInTxn['balance']}');
-          await BalanceSmsParser.storeBalance(
-            balanceInTxn['bank'] as String,
-            balanceInTxn['balance'] as double,
-          );
-          await NotificationService.showBalanceNotification(
-            bank: balanceInTxn['bank'] as String,
-            balance: balanceInTxn['balance'] as double,
-          );
-        }
 
         // Check for duplicates
         final existingTransactions =
@@ -415,7 +433,8 @@ class SmsNotificationListener {
             amount: parsedData['amount'],
             merchant: parsedData['merchant'],
             category: SmsExpenseService.categorizeExpense(
-                parsedData['merchant'], parsedData['amount'])['category'],
+                parsedData['merchant'], parsedData['amount'],
+                transactionType: parsedData['type'] ?? 'expense')['category'],
             paymentMethod: parsedData['paymentMethod'],
             isAutoDetected: true,
             date: timestamp != null

@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
 import '../screens/add_expense/add_expense_screen.dart';
-import '../screens/transactions/transaction_list_screen.dart';
+import '../screens/savings/savings_screens.dart';
 import '../screens/profile/profile_screen.dart';
 import '../theme/app_colors.dart';
 
@@ -18,7 +18,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
     const HomeScreen(),
     const AnalyticsScreen(),
     const AddExpenseScreen(),
-    const TransactionListScreen(),
+    const SavingsScreen(),
     const ProfileScreen(),
   ];
 
@@ -48,7 +48,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
           BottomNavigationBarItem(
             icon: Container(
               width: 48,
-              height: 50,
+              height: 48,
               decoration: BoxDecoration(
                 color: const Color(0xFF1E3A8A), // Dark blue background
                 shape: BoxShape.circle,
@@ -69,8 +69,8 @@ class _BottomNavigationState extends State<BottomNavigation> {
             label: 'Add',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.list_bullet),
-            label: 'History',
+            icon: Icon(CupertinoIcons.money_dollar_circle),
+            label: 'Savings',
           ),
           const BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.person),

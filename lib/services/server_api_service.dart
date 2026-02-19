@@ -80,7 +80,7 @@ class ServerApiService {
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body);
         // API might return { "budget": 5000 } or a plain number or { "amount": 5000 }
-        if (data is num) return (data as num).toDouble();
+        if (data is num) return data.toDouble();
         if (data is Map) {
           if (data.containsKey('budget')) return (data['budget'] as num).toDouble();
           if (data.containsKey('amount')) return (data['amount'] as num).toDouble();

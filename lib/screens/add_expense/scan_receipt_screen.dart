@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import 'review_receipt_screen.dart';
+import '../../utils/permission_checker.dart';
 
 class ScanReceiptScreen extends StatefulWidget {
   const ScanReceiptScreen({super.key});
@@ -15,15 +16,39 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   bool _isScanning = false;
   final ImagePicker _picker = ImagePicker();
 
+  Future<void> _showPermissionDeniedDialog() async {
+    if (!mounted) return;
+    await showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Camera Permission Needed'),
+        content: const Text('Please allow camera access to scan receipts.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _startScanning() async {
     setState(() {
       _isScanning = true;
     });
 
     try {
+      final hasPermission = await PermissionChecker.requestCameraPermission();
+      if (!hasPermission) {
+        await _showPermissionDeniedDialog();
+        return;
+      }
+
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.rear,
+        imageQuality: 85,
       );
 
       if (photo != null) {

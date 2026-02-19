@@ -5,8 +5,8 @@ import '../models/transaction_model.dart';
 import 'notification_service.dart';
 import 'sms_expense_service.dart';
 import 'transaction_storage_service.dart';
-import '../services/balance_sms_parser.dart';
 import '../services/sms_notification_listener.dart';
+import 'notification_event_service.dart';
 
 /// Service to initialize app and read SMS on launch
 class AppInitService {
@@ -36,27 +36,22 @@ class AppInitService {
       await NotificationService.initialize();
       debugPrint('Notification service initialized');
 
-      // Start SMS notification listener if previously enabled
+      // Initialize SMS notification listener (don't force-enable or request permissions here)
       final smsListener = SmsNotificationListener();
       await smsListener.initialize();
-      // Ensure listener runs by default: enable listener preference and start service.
-      try {
-        await smsListener.setListenerEnabled(true);
-        debugPrint('SMS notification listener set to enabled by default');
-      } catch (e) {
-        debugPrint('Could not enable SMS notification listener by default: $e');
-      }
       debugPrint('SMS notification listener initialized');
 
-      // Request SMS permission
-      final smsPermissionGranted =
-          await SmsExpenseService.requestSmsPermission();
-      debugPrint('SMS permission granted: $smsPermissionGranted');
+      // Start native EventChannel stream for in-app real-time notification events
+      NotificationEventService.start();
+      debugPrint('Notification EventChannel listener started');
 
-      // Run a one-time inbox scan after permission is granted
+      // Only run SMS detection if permission was already granted previously
+      final smsPermissionGranted = await SmsExpenseService.hasSmsPermission();
       if (smsPermissionGranted) {
-        debugPrint('Running one-time SMS inbox scan after permission grant...');
+        debugPrint('SMS permission already granted, running inbox scan...');
         await AppInitService.initializeSmsDetection();
+      } else {
+        debugPrint('SMS permission not yet granted - will be requested via permission screen');
       }
     } catch (e) {
       debugPrint('Error initializing app services: $e');

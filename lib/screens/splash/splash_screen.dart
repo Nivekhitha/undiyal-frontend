@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
-import 'package:undiyal/screens/auth/auth_gate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_colors.dart';
 import '../../services/sms_notification_listener.dart';
 import '../../services/app_init_service.dart';
+import '../permissions/notification_listener_permission_screen.dart';
+import '../auth/auth_gate.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,7 +14,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  bool _isScaleTheCircle = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -54,20 +55,22 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // Start the animation
     await _animationController.forward();
     
-    // After logo fades in (500ms), start white circle blow-up
+    // Wait for animation to complete
     await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      setState(() {
-        _isScaleTheCircle = true;
-      });
-    }
     
-    // Navigate to AuthGate after animation completes (2.5 seconds total)
+    // Navigate after animation completes (2.5 seconds total)
     await Future.delayed(const Duration(milliseconds: 2500));
     if (mounted) {
+      // Check if user has already seen the notification listener permission screen
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeenListenerPermission = prefs.getBool('has_seen_listener_permission') ?? false;
+      final Widget destination = hasSeenListenerPermission
+          ? const AuthGate()
+          : const NotificationListenerPermissionScreen();
+
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const AuthGate(),
+          pageBuilder: (context, animation, secondaryAnimation) => destination,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: CurvedAnimation(

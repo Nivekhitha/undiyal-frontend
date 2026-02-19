@@ -24,6 +24,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   bool _isLoading = true;
 
   StreamSubscription<Transaction>? _expenseSub;
+  StreamSubscription<Transaction>? _transactionAddedSub;
 
   final List<String> _filterOptions = [
     'All',
@@ -48,6 +49,15 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
         });
       }
     });
+
+    _transactionAddedSub = TransactionStorageService.onTransactionAdded.listen((tx) {
+      final exists = _transactions.any((t) => t.id == tx.id);
+      if (!exists) {
+        setState(() {
+          _transactions.insert(0, tx);
+        });
+      }
+    });
   }
 
   Future<void> _loadTransactions() async {
@@ -61,6 +71,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   @override
   void dispose() {
     _expenseSub?.cancel();
+    _transactionAddedSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }

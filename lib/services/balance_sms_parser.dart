@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service to parse bank balance SMS messages
@@ -49,6 +48,29 @@ class BalanceSmsParser {
     'AXIS': ['Axis Bank', 'AXIS'],
     'SBI': ['SBI', 'State Bank'],
   };
+
+  static final RegExp _transactionActionRegex = RegExp(
+    r'\b(?:debited|credited|spent|paid|withdrawn|deducted|charged|purchase|upi\s*txn|imps\s*txn|neft\s*txn)\b',
+    caseSensitive: false,
+  );
+
+  /// Strict check for balance-only SMS (used in Balance Setup Mode)
+  static bool isBalanceOnlySms(String body) {
+    final normalizedBody = body.toLowerCase();
+
+    final hasBalanceKeyword = normalizedBody.contains('available balance') ||
+        normalizedBody.contains('avail bal') ||
+        normalizedBody.contains('avl bal') ||
+        normalizedBody.contains('a/c bal') ||
+        normalizedBody.contains('account balance') ||
+        normalizedBody.contains('clear bal') ||
+        normalizedBody.contains('closing balance') ||
+        normalizedBody.contains('balance is');
+
+    if (!hasBalanceKeyword) return false;
+
+    return !_transactionActionRegex.hasMatch(normalizedBody);
+  }
 
   /// Check if SMS is a balance message and extract amount using keyword matching
   static Map<String, dynamic>? parseBalanceSms(String body, String? sender) {

@@ -6,6 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../services/bank_call_rate_limiter.dart';
 import '../../services/balance_sms_parser.dart';
+import '../../services/balance_detection_mode_service.dart';
 
 class BankBalanceSetupScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -32,6 +33,7 @@ class _BankBalanceSetupScreenState extends State<BankBalanceSetupScreen> {
   void initState() {
     super.initState();
     _loadRemainingCalls();
+    _restoreWaitingState();
   }
 
   @override
@@ -182,24 +184,55 @@ class _BankBalanceSetupScreenState extends State<BankBalanceSetupScreen> {
       await _launchDialer(bank['number']!);
       
       // Start listening for balance SMS
-      _startWaitingForBalance(bankCode, bank['name']!);
+      await _startWaitingForBalance(bankCode, bank['name']!);
     }
   }
 
-  void _startWaitingForBalance(String bankCode, String bankName) {
+  Future<void> _restoreWaitingState() async {
+    final session = await BalanceDetectionModeService.getActiveSession();
+    if (session == null || !mounted) return;
+
+    final bankName = banks
+            .firstWhere(
+              (bank) => bank['code'] == session.bankCode,
+              orElse: () => {'name': session.bankCode, 'code': session.bankCode},
+            )['name'] ??
+        session.bankCode;
+
+    await _startWaitingForBalance(
+      session.bankCode,
+      bankName,
+      persistSession: false,
+      timeoutOverride: session.remaining,
+    );
+  }
+
+  Future<void> _startWaitingForBalance(
+    String bankCode,
+    String bankName, {
+    bool persistSession = true,
+    Duration? timeoutOverride,
+  }) async {
     // Cancel any previous listener
     _balanceSubscription?.cancel();
     _timeoutTimer?.cancel();
+
+    if (persistSession) {
+      await BalanceDetectionModeService.startWaitingForBalance(
+        bankCode: bankCode,
+      );
+    }
 
     setState(() {
       _isWaitingForBalance = true;
     });
 
     // Subscribe to balance updates from the notification listener
-    _balanceSubscription = BalanceSmsParser.onBalanceUpdate.listen((data) {
+    _balanceSubscription = BalanceSmsParser.onBalanceUpdate.listen((data) async {
       // Balance received!
       _balanceSubscription?.cancel();
       _timeoutTimer?.cancel();
+      await BalanceDetectionModeService.stopWaitingForBalance();
       
       if (mounted) {
         setState(() {
@@ -218,15 +251,19 @@ class _BankBalanceSetupScreenState extends State<BankBalanceSetupScreen> {
     });
 
     // Timeout after 5 minutes
-    _timeoutTimer = Timer(const Duration(minutes: 5), () {
+    _timeoutTimer = Timer(
+      timeoutOverride ?? const Duration(minutes: 5),
+      () {
       _balanceSubscription?.cancel();
+      unawaited(BalanceDetectionModeService.stopWaitingForBalance());
       if (mounted) {
         setState(() {
           _isWaitingForBalance = false;
         });
-        _showTimeoutDialog(bankName);
+        _showTimeoutDialog(bankName, bankCode);
       }
-    });
+      },
+    );
   }
 
   void _showBalanceResultDialog({required String bankName, required double balance}) {
@@ -296,7 +333,7 @@ class _BankBalanceSetupScreenState extends State<BankBalanceSetupScreen> {
     );
   }
 
-  void _showTimeoutDialog(String bankName) {
+  void _showTimeoutDialog(String bankName, String bankCode) {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -312,10 +349,7 @@ class _BankBalanceSetupScreenState extends State<BankBalanceSetupScreen> {
             onPressed: () {
               Navigator.pop(context);
               // Retry - listen again
-              _startWaitingForBalance(
-                banks[_selectedBankIndex!]['code']!,
-                bankName,
-              );
+              unawaited(_startWaitingForBalance(bankCode, bankName));
             },
             child: const Text('Wait & Retry'),
           ),
@@ -612,6 +646,7 @@ class _BankBalanceSetupScreenState extends State<BankBalanceSetupScreen> {
                 onPressed: () {
                   _balanceSubscription?.cancel();
                   _timeoutTimer?.cancel();
+                  unawaited(BalanceDetectionModeService.stopWaitingForBalance());
                   setState(() {
                     _isWaitingForBalance = false;
                   });

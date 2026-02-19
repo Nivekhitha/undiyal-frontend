@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 
 import '../../theme/app_colors.dart';
@@ -8,7 +7,7 @@ import '../../utils/constants.dart';
 import '../../widgets/category_chip.dart';
 import '../../models/transaction_model.dart';
 import '../../services/transaction_storage_service.dart';
-import '../../services/receipt_scan_service.dart';
+import '../../services/receipt_scanning_service.dart';
 import '../../services/sms_expense_service.dart';
 import '../../navigation/bottom_nav.dart';
 import 'dart:math';
@@ -30,6 +29,7 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
   DateTime _selectedDate = DateTime.now();
   
   bool _isLoading = false;
+  bool _scanSucceeded = false;
 
   @override
   void initState() {
@@ -40,102 +40,57 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
   }
 
   Future<void> _processReceipt(String path) async {
-    if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
-      final file = File(path);
-      final resp = await ReceiptScanService.scanReceiptFromFile(file);
-
-      if (resp['success'] == true && resp['data'] != null) {
-        // Attempt to extract model text output (first choice text) or parse JSON
-        String modelText = '';
-        final data = resp['data'];
-        if (data is Map<String, dynamic>) {
-          // Common OpenAI-style response: choices[0].message.content or choices[0].text
-          if (data.containsKey('choices')) {
-            final choices = data['choices'];
-            if (choices is List && choices.isNotEmpty) {
-              final c0 = choices[0];
-              if (c0 is Map && c0.containsKey('message')) {
-                final msg = c0['message'];
-                if (msg is Map && msg.containsKey('content')) modelText = msg['content'].toString();
-              } else if (c0 is Map && c0.containsKey('text')) {
-                modelText = c0['text'].toString();
-              }
-            }
-          } else if (data.containsKey('text') && data['text'] is String) {
-            modelText = data['text'];
-          } else {
-            modelText = data.toString();
-          }
-        } else if (data is String) {
-          modelText = data;
-        }
-
-        // Try to find JSON object in modelText
-        Map<String, dynamic>? jsonObj;
-        try {
-          final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(modelText);
-          if (jsonMatch != null) {
-            final jsonStr = jsonMatch.group(0)!;
-            jsonObj = jsonDecode(jsonStr) as Map<String, dynamic>;
-          } else {
-            // Try direct parse
-            jsonObj = jsonDecode(modelText) as Map<String, dynamic>;
-          }
-        } catch (_) {
-          jsonObj = null;
-        }
-
-        String ocrText = modelText;
-
-        if (jsonObj != null) {
-          // Fill fields from JSON if present
-          if (jsonObj.containsKey('amount')) {
-            final rawAmt = jsonObj['amount'].toString();
-            final cleaned = rawAmt.replaceAll(RegExp(r'[^0-9\.]'), '');
-            final val = double.tryParse(cleaned) ?? 0.0;
-            if (val > 0) _amountController.text = val.toStringAsFixed(2);
-          }
-          if (jsonObj.containsKey('merchant')) _merchantController.text = jsonObj['merchant'].toString();
-          if (jsonObj.containsKey('date')) {
-            try {
-              final d = DateTime.parse(jsonObj['date'].toString());
-              _selectedDate = d;
-            } catch (_) {}
-          }
-          if (jsonObj.containsKey('raw_text')) ocrText = jsonObj['raw_text'].toString();
-        } else {
-          // Fallback: simple heuristics on modelText
-          final amtRegex = RegExp(r'(?:₹|rs\.?|inr)?\s*([0-9]{1,3}(?:[,\s][0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)', caseSensitive: false);
-          final m = amtRegex.firstMatch(ocrText);
-          if (m != null) {
-            final amtStr = m.group(1) ?? '';
-            final cleaned = amtStr.replaceAll(RegExp(r'[ ,]'), '');
-            final amt = double.tryParse(cleaned) ?? 0.0;
-            if (amt > 0) _amountController.text = amt.toStringAsFixed(2);
-          }
-
-          final lines = ocrText.split(RegExp(r'\r?\n')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-          for (var line in lines) {
-            if (line.length > 3 && !RegExp(r'^[₹Rsrsinr0-9\s\.,]+\$?', caseSensitive: false).hasMatch(line)) {
-              _merchantController.text = line;
-              break;
-            }
-          }
-        }
-      } else {
-        // Not successful - leave fields for manual edit
-      }
-    } catch (e) {
-      debugPrint('Receipt scanning error: $e');
-    } finally {
+      // Call Gemini API to scan receipt
+      final result = await ReceiptScanningService.scanReceipt(path);
+      
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _scanSucceeded = result != null && (
+              (result['amount'] is num && (result['amount'] as num) > 0) ||
+              (result['merchant'] is String && (result['merchant'] as String).trim().isNotEmpty) ||
+              (result['confidence'] is num && (result['confidence'] as num) > 0.1)
+          );
+          
+          if (result != null) {
+            // Pre-fill extracted data
+            if (result['amount'] != null) {
+              _amountController.text = result['amount'].toString();
+            }
+            if (result['merchant'] != null && result['merchant'].toString().isNotEmpty) {
+              _merchantController.text = result['merchant'].toString();
+            }
+            if (result['category'] != null && AppConstants.categories.contains(result['category'])) {
+              _selectedCategory = result['category'].toString();
+            }
+            if (result['date'] != null && result['date'] is DateTime) {
+              _selectedDate = result['date'] as DateTime;
+            } else {
+              _selectedDate = DateTime.now();
+            }
+            if (result['paymentMethod'] != null && AppConstants.paymentMethods.contains(result['paymentMethod'])) {
+              _selectedPaymentMethod = result['paymentMethod'].toString();
+            }
+          } else {
+            // If API fails, just set date to today
+            _selectedDate = DateTime.now();
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error processing receipt: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _scanSucceeded = false;
+          _selectedDate = DateTime.now();
         });
       }
     }
@@ -246,7 +201,7 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Success message
-                    if (widget.imagePath != null)
+                    if (widget.imagePath != null && _scanSucceeded)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -275,39 +230,73 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
-
-                    // Receipt preview
+                    if (widget.imagePath != null && !_scanSucceeded)
                     Container(
                       width: double.infinity,
-                      height: 200,
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: CupertinoColors.systemGrey5,
+                        color: CupertinoColors.systemOrange.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(16),
-                        image: widget.imagePath != null 
-                          ? DecorationImage(
-                              image: FileImage(File(widget.imagePath!)),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
                       ),
-                      child: widget.imagePath == null ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.doc_text,
-                              size: 48,
-                              color: AppColors.textSecondary,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            CupertinoIcons.exclamationmark_triangle_fill,
+                            color: CupertinoColors.systemOrange,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Couldn\'t analyze this receipt. You can fill the details manually or scan again.',
+                              style: AppTextStyles.body.copyWith(
+                                color: CupertinoColors.systemOrange,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'No Receipt Image',
-                              style: AppTextStyles.caption,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Receipt preview - full width, ~45% of screen height
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final previewHeight = MediaQuery.of(context).size.height * 0.45;
+                        return Container(
+                          width: double.infinity,
+                          height: previewHeight.clamp(220.0, 400.0),
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.systemGrey5,
+                            borderRadius: BorderRadius.circular(16),
+                            image: widget.imagePath != null 
+                              ? DecorationImage(
+                                  image: FileImage(File(widget.imagePath!)),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                          ),
+                          child: widget.imagePath == null ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  CupertinoIcons.doc_text,
+                                  size: 48,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'No Receipt Image',
+                                  style: AppTextStyles.caption,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ) : null,
+                          ) : null,
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 24),

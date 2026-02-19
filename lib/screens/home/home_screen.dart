@@ -118,6 +118,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _expenseUpdateSubscription = SmsNotificationListener.onExpenseUpdate.listen((transaction) {
       debugPrint('🟢 Real-time expense event received: ${transaction.merchant} - ₹${transaction.amount}');
       if (mounted) {
+        final exists = _transactions.any((t) => t.id == transaction.id);
+        if (exists) return;
         setState(() {
           _transactions.insert(0, transaction); // Add newest transaction to top
         });
@@ -128,6 +130,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _localAddSubscription = TransactionStorageService.onTransactionAdded.listen((transaction) {
       debugPrint('🟡 Local transaction added: ${transaction.merchant} - ₹${transaction.amount}');
       if (mounted) {
+        final exists = _transactions.any((t) => t.id == transaction.id);
+        if (exists) return;
         setState(() {
           _transactions.insert(0, transaction);
         });

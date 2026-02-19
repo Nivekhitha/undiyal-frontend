@@ -8,6 +8,7 @@ import '../models/transaction_model.dart';
 import 'home_widget_service.dart';
 import 'expense_service.dart';
 import 'balance_sms_parser.dart';
+import 'transaction_storage_service.dart';
 
 /// Service for automatically detecting expenses from SMS messages
 /// Works fully offline, no backend connection required
@@ -62,7 +63,7 @@ class SmsExpenseService {
   
   // STRICT keywords that indicate CREDIT transactions only - using word boundaries
   static final RegExp _creditRegex = RegExp(
-    r'\b(?:cr\.?\s+to|credit(?:ed)?|received|refund(?:ed)?|cashback)\b',
+    r'\b(?:credit(?:ed)?|received|refund(?:ed)?|cashback|deposited|reversed|salary|added\s+to|money\s+received|neft\s+cr|imps\s+cr|transfer(?:red)?\s+to\s+your)\b',
     caseSensitive: false,
   );
   
@@ -289,7 +290,7 @@ class SmsExpenseService {
         String paymentMethod = parsedData['paymentMethod'];
 
         // LOW CONFIDENCE CHECK - only skip if truly unknown
-        if (merchantName == 'Expense' && merchantName.isEmpty) {
+        if (merchantName == 'Expense' || merchantName.isEmpty) {
            debugPrint('⚠ Generic expense detected - using default name');
            // Use default name and continue - don't skip
         }
@@ -312,17 +313,18 @@ class SmsExpenseService {
         }
 
         // 5. Populate transaction fields
+        final txType = parsedData['type'] ?? 'expense';
         final transaction = Transaction(
           id: _generateTransactionId(),
           amount: amount,
           merchant: merchantName,
-          category: categorizeExpense(merchantName, amount)['category'],
+          category: categorizeExpense(merchantName, amount, transactionType: txType)['category'],
           paymentMethod: paymentMethod,
           isAutoDetected: true,
           date: message.date ?? DateTime.now(),
           referenceNumber: refNumber,
           confidenceScore: 1.0,
-          type: parsedData['type'] ?? 'expense',
+          type: txType,
         );
 
         debugPrint('✓ Auto-detected transaction: ${transaction.merchant} - ₹${transaction.amount} (${transaction.type})');
@@ -439,30 +441,42 @@ class SmsExpenseService {
       return null;
     }
 
-    // 7. STRICT transaction type determination using regex
+    // 7. Transaction type determination using position-based heuristic
     String transactionType = 'expense';
     String? creditSource;
-    
-    // EXPLICIT DEBIT PATTERNS - check first since they're more specific
-    if (_debitRegex.hasMatch(body)) {
+
+    if (hasExpenseKeyword && !hasCreditKeyword) {
+      // Only debit keywords → expense
       transactionType = 'expense';
-      debugPrint('STRICT: Identified as EXPENSE/DEBIT transaction');
-    }
-    
-    // Check for credit - but "cr. to" is actually a debit destination
-    if (hasCreditKeyword && !body.contains('cr. to') && !body.contains('cr to')) {
-      // Verify it's a genuine credit and not part of a debit message
-      if (!hasExpenseKeyword) {
+      debugPrint('TYPE: Only debit keywords → EXPENSE');
+    } else if (hasCreditKeyword && !hasExpenseKeyword) {
+      // Only credit keywords → credit
+      transactionType = 'credit';
+      debugPrint('TYPE: Only credit keywords → CREDIT');
+    } else if (hasExpenseKeyword && hasCreditKeyword) {
+      // Both present → use position-based heuristic
+      // Whichever keyword appears FIRST in the SMS is the primary action
+      final debitMatch = _debitRegex.firstMatch(body);
+      final creditMatch = _creditRegex.firstMatch(body);
+      final debitPos = debitMatch?.start ?? body.length;
+      final creditPos = creditMatch?.start ?? body.length;
+
+      if (creditPos < debitPos) {
         transactionType = 'credit';
-        debugPrint('STRICT: Identified as CREDIT transaction');
-        
-        // Try to extract source for credits
-        final creditFromPattern = RegExp(r'(?:from|credited by|received from)\s+([a-zA-Z0-9\.@]+)', caseSensitive: false);
-        final creditMatch = creditFromPattern.firstMatch(body);
-        if (creditMatch != null) {
-          creditSource = creditMatch.group(1);
-          debugPrint('Credit source: $creditSource');
-        }
+        debugPrint('TYPE: Both keywords present, credit appears first → CREDIT');
+      } else {
+        transactionType = 'expense';
+        debugPrint('TYPE: Both keywords present, debit appears first → EXPENSE');
+      }
+    }
+
+    // Extract source for credit transactions
+    if (transactionType == 'credit') {
+      final creditFromPattern = RegExp(r'(?:from|credited by|received from)\s+([a-zA-Z0-9\.@]+)', caseSensitive: false);
+      final creditMatch = creditFromPattern.firstMatch(body);
+      if (creditMatch != null) {
+        creditSource = creditMatch.group(1);
+        debugPrint('Credit source: $creditSource');
       }
     }
 
@@ -637,10 +651,25 @@ class SmsExpenseService {
 
   /// AI-style expense categorization using rule-based + heuristic logic
   /// Returns category and confidence score (0-1)
-  static Map<String, dynamic> categorizeExpense(String merchant, double amount) {
+  /// When [transactionType] is 'credit', applies credit-specific categories
+  static Map<String, dynamic> categorizeExpense(String merchant, double amount, {String transactionType = 'expense'}) {
     final merchantLower = merchant.toLowerCase();
     double confidence = 0.0;
     String category = 'Others';
+
+    // Credit-specific categorization
+    if (transactionType == 'credit') {
+      final refundKeywords = ['refund', 'cashback', 'reversal', 'reversed', 'chargeback'];
+      if (refundKeywords.any((k) => merchantLower.contains(k))) {
+        return {'category': 'Refund', 'confidence': 0.9};
+      }
+      final salaryKeywords = ['salary', 'payroll', 'stipend', 'wages'];
+      if (salaryKeywords.any((k) => merchantLower.contains(k))) {
+        return {'category': 'Salary', 'confidence': 0.9};
+      }
+      // Default credit category
+      return {'category': 'Income', 'confidence': 0.6};
+    }
 
     // Food & Drink category
     final foodKeywords = ['zomato', 'swiggy', 'uber eats', 'food', 'restaurant', 'cafe', 
@@ -777,6 +806,12 @@ class SmsExpenseService {
 
       // UPDATE HOME WIDGET
       await HomeWidgetService.updateWidgetData();
+      // Emit events for UI live-updates
+      for (var tx in transactions) {
+        try {
+          TransactionStorageService.notifyTransactionAdded(tx);
+        } catch (_) {}
+      }
     } catch (e) {
       debugPrint('Error saving transactions: $e');
     }

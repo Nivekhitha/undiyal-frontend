@@ -9,9 +9,14 @@ class PrivacyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Privacy Policy'),
+      navigationBar: CupertinoNavigationBar(
         backgroundColor: AppColors.background,
+        border: null,
+        leading: GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: const Icon(CupertinoIcons.back, color: AppColors.textPrimary),
+        ),
+        middle: const Text('Privacy Policy'),
       ),
       child: SafeArea(
         child: Padding(

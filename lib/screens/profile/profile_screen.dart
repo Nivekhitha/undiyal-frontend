@@ -8,11 +8,12 @@ import '../../services/auth_service.dart';
 import '../../services/biometric_service.dart';
 import '../../services/settings_service.dart';
 import '../auth/auth_gate.dart';
-import 'subscription_screen.dart';
 import 'terms_screen.dart';
 import 'privacy_screen.dart';
 import 'support_screen.dart';
+import 'savings_settings_screen.dart';
 import '../settings/sms_notification_settings_screen.dart';
+import 'dart:async';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -26,17 +27,19 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Data
-  double _monthlyBudget = 5000.0;
+  // Data (initial values overwritten by _loadData from real storage)
+  double _monthlyBudget = 0;
+  double _monthlySavingsTarget = 0;
   String _selectedCurrency = '₹ INR';
   bool _notificationsEnabled = true;
   bool _biometricEnabled = false;
   String? _biometricName = 'Biometric';
   bool _isBiometricAvailable = false;
-  
-  String _userName = 'Student';
-  String _userEmail = 'student@undiyal.com';
+
+  String _userName = '';
+  String _userEmail = '';
   String? _profileImagePath;
+  StreamSubscription<String>? _settingsSubscription;
 
   final List<String> _currencies = ['₹ INR', '\$ USD', '€ EUR', '£ GBP', '¥ JPY'];
 
@@ -45,6 +48,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _loadData();
     _checkBiometricAvailability();
+    
+    // Listen for settings changes and refresh
+    _settingsSubscription = SettingsService.onSettingsChange.listen((settingKey) {
+      if (settingKey == 'monthly_budget' || 
+          settingKey == 'monthly_savings_target') {
+        _loadData();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _settingsSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkBiometricAvailability() async {
@@ -60,6 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadData() async {
     final budget = await SettingsService.getMonthlyBudget();
+    final savingsTarget = await SettingsService.getMonthlySavingsTarget();
     final currency = await SettingsService.getCurrency();
     final profile = await ProfileService.getProfile();
     final prefs = await ProfileService.getPreferences();
@@ -67,9 +85,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) {
       setState(() {
         _monthlyBudget = budget;
+        _monthlySavingsTarget = savingsTarget;
         _selectedCurrency = currency;
-        _userName = profile['name'];
-        _userEmail = profile['email'];
+        _userName = (profile['name'] as String?) ?? '';
+        _userEmail = (profile['email'] as String?) ?? '';
         _profileImagePath = profile['imagePath'];
         
         _notificationsEnabled = prefs['notifications'];
@@ -137,7 +156,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: Text(
                                     _userName.isNotEmpty
                                         ? _userName.substring(0, 1).toUpperCase()
-                                        : 'U',
+                                        : (_userEmail.isNotEmpty
+                                            ? _userEmail.substring(0, 1).toUpperCase()
+                                            : 'U'),
                                     style: AppTextStyles.h1.copyWith(
                                       color: AppColors.primary,
                                       fontSize: 32,
@@ -228,12 +249,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       _buildDivider(),
                       _buildMenuItem(
-                        icon: CupertinoIcons.star,
-                        title: 'Subscription',
-                        trailingText: 'Free',
-                        onTap: () => Navigator.of(context).push(
-                          CupertinoPageRoute(builder: (context) => const SubscriptionScreen()),
-                        ),
+                        icon: CupertinoIcons.tray_full,
+                        title: 'Savings Settings',
+                        trailingText: _monthlySavingsTarget > 0 ? '₹${_monthlySavingsTarget.toStringAsFixed(0)}' : null,
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            CupertinoPageRoute(builder: (context) => const SavingsSettingsScreen()),
+                          );
+                          // Reload data when returning from Savings Settings
+                          _loadData();
+                        },
                         isLast: true,
                       ),
                     ],
@@ -583,139 +608,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showBudgetPicker(BuildContext context) {
     double tempBudget = _monthlyBudget;
-    showCupertinoModalPopup<double>(
+    showCupertinoModalPopup(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (context, setModalState) {
-        return Container(
-          height: 320,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: CupertinoColors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
+      builder: (BuildContext context) => Container(
+        height: 280,
+        color: CupertinoColors.white,
+        child: Column(
+          children: [
+             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      child: const Text('Cancel'),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                    Text('Set Budget', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      child: const Text('Done'),
-                      onPressed: () async {
-                        await SettingsService.setMonthlyBudget(tempBudget);
-                        setState(() => _monthlyBudget = tempBudget);
-                        Navigator.pop(ctx, tempBudget);
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text('₹${tempBudget.toStringAsFixed(0)}', style: AppTextStyles.h3),
-                CupertinoSlider(
-                  min: 0,
-                  max: 50000,
-                  divisions: 100,
-                  value: tempBudget.clamp(0, 50000),
-                  onChanged: (v) => setModalState(() => tempBudget = (v / 50).round() * 50.0),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    CupertinoButton.filled(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                      child: const Text('₹1,000'),
-                      onPressed: () => setModalState(() => tempBudget = 1000),
-                    ),
-                    CupertinoButton.filled(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                      child: const Text('₹5,000'),
-                      onPressed: () => setModalState(() => tempBudget = 5000),
-                    ),
-                    CupertinoButton.filled(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                      child: const Text('₹10,000'),
-                      onPressed: () => setModalState(() => tempBudget = 10000),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                CupertinoButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+                Text('Set Budget', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
+                CupertinoButton(child: const Text('Done'), onPressed: () async {
+                   await SettingsService.setMonthlyBudget(tempBudget);
+                   setState(() => _monthlyBudget = tempBudget);
+                   Navigator.pop(context);
+                }),
               ],
             ),
-          ),
-        );
-      }),
+            Expanded(
+              child: CupertinoPicker(
+                scrollController: FixedExtentScrollController(initialItem: (_monthlyBudget / 500).round() - 1),
+                itemExtent: 40,
+                onSelectedItemChanged: (index) => tempBudget = (index + 1) * 500.0,
+                children: List.generate(40, (index) => Center(child: Text('₹${(index + 1) * 500}'))),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  void _showCurrencyPicker(BuildContext context) async {
-    final result = await showCupertinoModalPopup<String>(
+  void _showCurrencyPicker(BuildContext context) {
+    showCupertinoModalPopup(
       context: context,
-      builder: (ctx) {
-        return Container(
-          height: 380,
-          decoration: BoxDecoration(
-            color: CupertinoColors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+      builder: (BuildContext context) => Container(
+        height: 250,
+        color: CupertinoColors.white,
+        child: Column(
+          children: [
+             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      CupertinoButton(padding: EdgeInsets.zero, child: const Text('Cancel'), onPressed: () => Navigator.pop(ctx)),
-                      Text('Select Currency', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
-                      CupertinoButton(padding: EdgeInsets.zero, child: const Text('Done'), onPressed: () => Navigator.pop(ctx)),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: _currencies.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final cur = _currencies[index];
-                      return CupertinoButton(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        onPressed: () async {
-                          await SettingsService.setCurrency(cur);
-                          setState(() => _selectedCurrency = cur);
-                          Navigator.pop(ctx, cur);
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(cur, style: AppTextStyles.body),
-                            if (cur == _selectedCurrency) Icon(Icons.check, color: AppColors.primary),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                CupertinoButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context)),
+                Text('Select Currency', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
+                CupertinoButton(child: const Text('Done'), onPressed: () => Navigator.pop(context)),
               ],
             ),
-          ),
-        );
-      },
+            Expanded(
+              child: CupertinoPicker(
+                itemExtent: 40,
+                onSelectedItemChanged: (index) async {
+                   final newCurrency = _currencies[index];
+                   setState(() => _selectedCurrency = newCurrency);
+                   await SettingsService.setCurrency(newCurrency);
+                },
+                children: _currencies.map((c) => Center(child: Text(c))).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
-
-    if (result != null) {
-      setState(() => _selectedCurrency = result);
-    }
   }
 
   void _logout(BuildContext context) {

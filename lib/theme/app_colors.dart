@@ -1,35 +1,38 @@
 import 'package:flutter/cupertino.dart';
 
 class AppColors {
-  // Modern Color Scheme - Deep Blue Theme
-  // Backgrounds
-  static const Color background = Color(0xFFF8F9FA); // Light gray-white
-  static const Color cardBackground = Color(0xFFFFFFFF); // Pure white
+  // Blue-based Zenith Palette
+  // Primary Colors
+  static const Color primary = Color(0xFF0D47A1); // Primary Blue
+  static const Color primaryAccent = Color(0xFF2196F3); // Accent Blue
+  static const Color primaryLight = Color(0xFFE3F2FD); // Surface Blue
 
-  // Accents - Deep Blue Primary
-  static const Color primary = Color(0xFF1E3A8A); // Deep blue
-  static const Color primaryDark = Color(0xFF1E40AF);
-  static const Color primaryLight = Color(0xFF3B82F6); // Bright blue
-  static const Color primaryAccent = Color(0xFF60A5FA); // Light blue
+  // Backgrounds
+  static const Color background = Color(0xFFF4F6F8); // Background
+  static const Color cardBackground = Color(0xFFFFFFFF); // Card White
 
   // Text
-  static const Color textPrimary = Color(0xFF1F2937); // Dark gray
-  static const Color textSecondary = Color(0xFF6B7280); // Medium gray
-  static const Color textOnCard = Color(0xFF1F2937);
-  static const Color textLight = Color(0xFF9CA3AF); // Light gray
+  static const Color textPrimary = Color(0xFF0F172A); // Text Primary
+  static const Color textSecondary = Color(0xFF64748B); // Text Secondary
+  static const Color textOnCard = Color(0xFF0F172A);
+  static const Color textLight = Color(0xFF64748B);
 
-  // Functional
+  // Urgency / Alerts
+  static const Color urgent = Color(0xFFF87171); // Urgent Red
+  static const Color urgentBackground = Color(0xFFFEE2E2); // Urgent BG
+
+  // Functional (keeping existing for compatibility)
   static const Color success = Color(0xFF10B981); // Green
-  static const Color error = Color(0xFFEF4444); // Red
+  static const Color error = Color(0xFFF87171); // Updated to match urgent
   static const Color warning = Color(0xFFF59E0B); // Orange
-  static const Color info = Color(0xFF3B82F6); // Blue
+  static const Color info = Color(0xFF2196F3); // Updated to accent blue
 
   // Chart colors
-  static const Color chartBar = Color(0xFF3B82F6);
-  static const Color chartInactive = Color(0xFFE5E7EB);
-  static const Color chartSecondary = Color(0xFF60A5FA);
+  static const Color chartBar = Color(0xFF2196F3); // Accent Blue
+  static const Color chartInactive = Color(0xFFE2E8F0);
+  static const Color chartSecondary = Color(0xFF0D47A1); // Primary Blue
   
   // Borders and Dividers
-  static const Color border = Color(0xFFE5E7EB);
-  static const Color divider = Color(0xFFE5E7EB);
+  static const Color border = Color(0xFFE2E8F0); // Divider/Border
+  static const Color divider = Color(0xFFE2E8F0);
 }

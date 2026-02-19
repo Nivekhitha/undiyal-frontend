@@ -1,7 +1,6 @@
 import '../models/transaction_model.dart';
 import 'sms_expense_service.dart';
 import 'expense_service.dart';
-import '../models/transaction_model.dart';
 import 'dart:async';
 
 /// Service to manage stored transactions
@@ -12,6 +11,13 @@ class TransactionStorageService {
       StreamController<Transaction>.broadcast();
 
   static Stream<Transaction> get onTransactionAdded => _transactionAddedController.stream;
+
+  /// Public helper for native or other services to notify when a transaction is added
+  static void notifyTransactionAdded(Transaction transaction) {
+    try {
+      _transactionAddedController.add(transaction);
+    } catch (_) {}
+  }
 
   /// Get all transactions
   static Future<List<Transaction>> getAllTransactions() async {
@@ -83,6 +89,7 @@ class TransactionStorageService {
         isAutoDetected: tx.isAutoDetected,
         referenceNumber: tx.referenceNumber,
         confidenceScore: tx.confidenceScore,
+        type: tx.type,
       );
       
       allTransactions[index] = updatedTx;
