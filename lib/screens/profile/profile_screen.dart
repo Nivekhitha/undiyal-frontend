@@ -52,7 +52,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Listen for settings changes and refresh
     _settingsSubscription = SettingsService.onSettingsChange.listen((settingKey) {
       if (settingKey == 'monthly_budget' || 
-          settingKey == 'monthly_savings_target') {
+          settingKey == 'monthly_savings_target' ||
+          settingKey == 'category_budgets') {
         _loadData();
       }
     });

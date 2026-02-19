@@ -13,6 +13,7 @@ import 'home_widgets.dart';
 import '../../screens/bank/bank_balance_setup_screen.dart';
 import '../transactions/transaction_detail_screen.dart';
 import '../transactions/transaction_list_screen.dart';
+import '../reminder/all_reminder_screens.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -234,7 +235,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                           GestureDetector(
                             onTap: () {
-                              // Navigate to notifications
+                              Navigator.of(context).push(
+                                CupertinoPageRoute(
+                                  builder: (context) => const AllRemindersScreen(),
+                                ),
+                              );
                             },
                             child: Container(
                               width: 44,
