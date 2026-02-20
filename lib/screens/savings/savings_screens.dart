@@ -38,7 +38,7 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
   List<CategoryBudget> _categoryBudgets = [];
   bool _isLoadingBudget = true;
   String? _aiSuggestions;
-  bool _aiSuggestionsLoading = true;
+  bool _aiSuggestionsLoading = false;
   StreamSubscription<String>? _settingsSubscription;
 
   @override
@@ -46,7 +46,6 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
     super.initState();
     _loadGoals();
     _loadBudgetData();
-    _loadAiSuggestions();
     
     // Listen for settings changes and refresh
     _settingsSubscription = SettingsService.onSettingsChange.listen((settingKey) {
@@ -152,14 +151,101 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
   }
 
   Future<void> _loadAiSuggestions() async {
-    setState(() => _aiSuggestionsLoading = true);
-    final suggestions = await AiSuggestionsService.getSuggestions();
+    await _fetchAiSuggestions(showDialog: false);
+  }
+
+  String _formatAiSuggestionText(String markdown) {
+    return markdown.replaceAll(r'\n', '\n').replaceAll('**', '').trim();
+  }
+
+  Future<void> _fetchAiSuggestions({required bool showDialog}) async {
+    if (_aiSuggestionsLoading) return;
     if (mounted) {
-      setState(() {
-        _aiSuggestions = suggestions;
-        _aiSuggestionsLoading = false;
-      });
+      setState(() => _aiSuggestionsLoading = true);
     }
+
+    final suggestions = await AiSuggestionsService.getSuggestions();
+    if (!mounted) return;
+
+    setState(() {
+      _aiSuggestions = suggestions;
+      _aiSuggestionsLoading = false;
+    });
+
+    if (!showDialog) return;
+
+    final text = (suggestions ?? '').trim();
+    if (text.isEmpty) {
+      await showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('No Suggestions Yet'),
+          content: const Text('Log a few expenses and try again.'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    await showCupertinoModalPopup(
+      context: context,
+      builder: (context) {
+        final formatted = _formatAiSuggestionText(text);
+        return SafeArea(
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.65,
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: CupertinoColors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Saving idea', style: AppTextStyles.h3),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Icon(
+                        CupertinoIcons.xmark_circle_fill,
+                        color: AppColors.textSecondary,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Based on your previous spending patterns',
+                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Text(
+                      formatted,
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                        height: 1.6,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   BudgetOverview get _budgetOverview {
@@ -986,6 +1072,39 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
           ],
         ),
         const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => _fetchAiSuggestions(showDialog: true),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.sparkles, size: 18, color: AppColors.textPrimary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _aiSuggestionsLoading
+                        ? 'Getting your saving idea...'
+                        : 'Generate Savings Plan with AI',
+                    style: AppTextStyles.body.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                if (_aiSuggestionsLoading)
+                  const CupertinoActivityIndicator(radius: 10)
+                else
+                  const Icon(CupertinoIcons.chevron_right, size: 16, color: AppColors.textSecondary),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (_aiSuggestionsLoading)
           Container(
             padding: const EdgeInsets.all(24),
@@ -1014,7 +1133,7 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
 
   Widget _buildAiSuggestionsCard(String markdown) {
     // Simple formatting: replace \n with newlines, strip ** for cleaner display
-    final text = markdown.replaceAll(r'\n', '\n').replaceAll('**', '');
+    final text = _formatAiSuggestionText(markdown);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

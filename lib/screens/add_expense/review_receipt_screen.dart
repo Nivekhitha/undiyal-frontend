@@ -9,7 +9,6 @@ import '../../models/transaction_model.dart';
 import '../../services/transaction_storage_service.dart';
 import '../../services/receipt_scanning_service.dart';
 import '../../services/sms_expense_service.dart';
-import '../../navigation/bottom_nav.dart';
 import 'dart:math';
 
 class ReviewReceiptScreen extends StatefulWidget {
@@ -137,13 +136,11 @@ class _ReviewReceiptScreenState extends State<ReviewReceiptScreen> {
         actions: [
           CupertinoDialogAction(
             onPressed: () {
-              // CRITICAL FIX: Safe reset to Home
-              Navigator.of(context).pushAndRemoveUntil(
-                CupertinoPageRoute(
-                  builder: (context) => const BottomNavigation(),
-                ),
-                (route) => false,
-              );
+              // Close dialog, then return to previous screen in the current tab.
+              Navigator.of(context).pop();
+              if (mounted) {
+                Navigator.of(this.context).pop();
+              }
             },
             child: const Text('OK'),
           ),

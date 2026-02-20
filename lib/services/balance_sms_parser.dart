@@ -37,6 +37,10 @@ class BalanceSmsParser {
       r'(?:avl\.?\s*bal|a\/c\s*bal)\s*(?:in\s*a\/c\s*\w+)?\s*(?:is)?\s*(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.\d{1,2})?)',
       caseSensitive: false,
     ),
+    'INDIAN': RegExp(
+      r'(?:available\s*balance|avail\s*bal|avl\s*bal|a\/c\s*bal|account\s*balance|bal\s*is).*?(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.\d{1,2})?)',
+      caseSensitive: false,
+    ),
   };
 
   /// Bank identifiers in SMS sender or body
@@ -47,6 +51,7 @@ class BalanceSmsParser {
     'HDFC': ['HDFC Bank', 'HDFC'],
     'AXIS': ['Axis Bank', 'AXIS'],
     'SBI': ['SBI', 'State Bank'],
+    'INDIAN': ['Indian Bank', 'INDIAN', 'IndBank'],
   };
 
   static final RegExp _transactionActionRegex = RegExp(

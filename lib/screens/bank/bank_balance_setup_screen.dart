@@ -64,6 +64,12 @@ class _BankBalanceSetupScreenState extends State<BankBalanceSetupScreen> {
       'icon': '🏦',
     },
     {
+      'name': 'Indian Bank',
+      'number': '9677633000',
+      'code': 'INDIAN',
+      'icon': '🏛️',
+    },
+    {
       'name': 'Bank of Baroda',
       'number': '8468001111',
       'code': 'BOB',

@@ -30,15 +30,20 @@ class Transaction {
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
+    final merchantValue = (json['merchant'] ?? json['merchant_name'] ?? json['business_name'] ?? 'Unknown').toString();
+    final categoryValue = (json['category'] ?? json['merchant_type'] ?? 'Others').toString();
+    final dateValue = (json['date'] ?? json['invoice_date'] ?? json['created_at'] ?? '').toString();
+    final paymentMethodValue = (json['paymentMethod'] ?? json['payment_mode'] ?? json['payment_method'] ?? 'Other').toString();
+
     return Transaction(
       id: json['id']?.toString() ?? '',
       amount: (json['amount'] is num) ? (json['amount'] as num).toDouble() : 0.0,
-      merchant: json['merchant'] ?? 'Unknown',
-      category: json['category'] ?? 'Others',
-      date: DateTime.tryParse(json['date'] ?? '') ?? DateTime.now(),
-      paymentMethod: json['paymentMethod'] ?? 'Other',
+      merchant: merchantValue,
+      category: categoryValue,
+      date: DateTime.tryParse(dateValue) ?? DateTime.now(),
+      paymentMethod: paymentMethodValue,
       status: json['status'] ?? 'completed',
-      receiptUrl: json['receiptUrl'],
+      receiptUrl: (json['receiptUrl'] ?? json['receipt_url'])?.toString(),
       isRecurring: json['isRecurring'] ?? false,
       isAutoDetected: json['isAutoDetected'] ?? false,
       referenceNumber: json['referenceNumber'],
@@ -48,15 +53,24 @@ class Transaction {
   }
 
   Map<String, dynamic> toJson() {
+    final isoDate = date.toIso8601String();
     return {
       'id': id,
       'amount': amount,
-      'merchant_name': merchant,
+      // Canonical app keys
+      'merchant': merchant,
       'category': category,
-      'invoice_date': date.toIso8601String(),
+      'date': isoDate,
+      'paymentMethod': paymentMethod,
+
+      // Backend/legacy alias keys (harmless if backend ignores unknown fields)
+      'merchant_name': merchant,
+      'merchant_type': category,
+      'invoice_date': isoDate,
       'payment_mode': paymentMethod,
       'status': status,
       'receiptUrl': receiptUrl,
+      'receipt_url': receiptUrl,
       'isRecurring': isRecurring,
       'isAutoDetected': isAutoDetected,
       'referenceNumber': referenceNumber,

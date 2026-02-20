@@ -56,17 +56,18 @@ class TransactionStorageService {
   /// Add a new transaction (manual entry)
   static Future<void> addTransaction(Transaction transaction) async {
     // 1. Save locally first (Optimistic UI)
-    final existingTransactions = await SmsExpenseService.getStoredTransactions();
-    existingTransactions.add(transaction);
-    await SmsExpenseService.saveTransactions(existingTransactions);
+    // Save only the new transaction; SmsExpenseService will merge and persist.
+    await SmsExpenseService.saveTransactions([transaction]);
 
     // Notify listeners that a transaction was added
     try {
       _transactionAddedController.add(transaction);
     } catch (_) {}
 
-    // 2. Sync to backend
-    await ExpenseService.addExpense(transaction);
+    // 2. Sync to backend (best-effort)
+    try {
+      await ExpenseService.addExpense(transaction);
+    } catch (_) {}
   }
 
   /// Update transaction category (for manual editing)
