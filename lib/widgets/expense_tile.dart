@@ -1,3 +1,7 @@
+
+
+
+
 import 'package:flutter/cupertino.dart';
 import '../models/transaction_model.dart';
 import '../theme/app_colors.dart';
@@ -36,10 +40,21 @@ class ExpenseTile extends StatelessWidget {
     }
   }
 
+  String _displayMerchant(Transaction tx) {
+    final m = tx.merchant.trim();
+    if (m.isEmpty) return tx.type == 'credit' ? 'Bank Transfer' : 'Expense';
+    final lower = m.toLowerCase();
+    if (lower == 'a' || lower == 'a/c' || lower == 'ac') {
+      return tx.type == 'credit' ? 'Bank Transfer' : m;
+    }
+    return m;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isCredit = transaction.type == 'credit';
-    
+    final merchantLabel = _displayMerchant(transaction);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -54,14 +69,18 @@ class ExpenseTile extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: isCredit 
-                    ? const Color(0xFF10B981).withValues(alpha: 0.2) // Green for credit
+                color: isCredit
+                    ? const Color(0xFF10B981)
+                        .withValues(alpha: 0.2) // Green for credit
                     : AppColors.primary.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                isCredit ? CupertinoIcons.arrow_down_circle : _getCategoryIcon(transaction.category),
-                color: isCredit ? const Color(0xFF10B981) : AppColors.textPrimary,
+                isCredit
+                    ? CupertinoIcons.arrow_down_circle
+                    : _getCategoryIcon(transaction.category),
+                color:
+                    isCredit ? const Color(0xFF10B981) : AppColors.textPrimary,
                 size: 24,
               ),
             ),
@@ -74,15 +93,16 @@ class ExpenseTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                    transaction.merchant,
-                    style: AppTextStyles.body.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                          merchantLabel,
+                          style: AppTextStyles.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       if (transaction.isAutoDetected)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: isCredit
                                 ? const Color(0xFF10B981).withValues(alpha: 0.2)
@@ -93,7 +113,9 @@ class ExpenseTile extends StatelessWidget {
                             isCredit ? 'Credit' : 'Auto',
                             style: AppTextStyles.label.copyWith(
                               fontSize: 10,
-                              color: isCredit ? const Color(0xFF10B981) : AppColors.primary,
+                              color: isCredit
+                                  ? const Color(0xFF10B981)
+                                  : AppColors.primary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -112,7 +134,7 @@ class ExpenseTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  isCredit 
+                  isCredit
                       ? '+₹${transaction.amount.toStringAsFixed(2)}'
                       : '-₹${transaction.amount.toStringAsFixed(2)}',
                   style: AppTextStyles.body.copyWith(

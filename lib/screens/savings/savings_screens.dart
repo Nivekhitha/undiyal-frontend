@@ -22,7 +22,8 @@ class SavingsScreen extends StatefulWidget {
   State<SavingsScreen> createState() => _SavingsScreenState();
 }
 
-class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateMixin {
+class _SavingsScreenState extends State<SavingsScreen>
+    with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   CategoryBudget? _selectedCategory;
@@ -46,11 +47,12 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
     super.initState();
     _loadGoals();
     _loadBudgetData();
-    
+
     // Listen for settings changes and refresh
-    _settingsSubscription = SettingsService.onSettingsChange.listen((settingKey) {
-      if (settingKey == 'monthly_budget' || 
-          settingKey == 'monthly_savings_target' || 
+    _settingsSubscription =
+        SettingsService.onSettingsChange.listen((settingKey) {
+      if (settingKey == 'monthly_budget' ||
+          settingKey == 'monthly_savings_target' ||
           settingKey == 'category_budgets') {
         _loadBudgetData();
       }
@@ -59,7 +61,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+    _fadeAnimation =
+        CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
     _fadeController.forward();
   }
 
@@ -92,9 +95,11 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
     double totalSpent = 0;
     final Map<String, double> spentByCategory = {};
     for (final tx in transactions) {
-      if (tx.type == 'expense' && tx.date.isAfter(thisMonthStart.subtract(const Duration(days: 1)))) {
+      if (tx.type == 'expense' &&
+          tx.date.isAfter(thisMonthStart.subtract(const Duration(days: 1)))) {
         totalSpent += tx.amount;
-        spentByCategory[tx.category] = (spentByCategory[tx.category] ?? 0) + tx.amount;
+        spentByCategory[tx.category] =
+            (spentByCategory[tx.category] ?? 0) + tx.amount;
       }
     }
     final List<CategoryBudget> list = [];
@@ -104,13 +109,16 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
       final spent = spentByCategory[cat] ?? 0;
       final remaining = (limit - spent).clamp(0.0, double.infinity);
       CategoryStatus status = CategoryStatus.onTrack;
-      if (spent > limit) status = CategoryStatus.overspending;
+      if (spent > limit)
+        status = CategoryStatus.overspending;
       else if (spent / limit >= 0.8) status = CategoryStatus.warning;
       String suggestion = 'Keep tracking to stay within budget.';
       if (status == CategoryStatus.overspending) {
-        suggestion = 'You\'re over budget. Review recent spending in this category.';
+        suggestion =
+            'You\'re over budget. Review recent spending in this category.';
       } else if (status == CategoryStatus.warning) {
-        suggestion = 'Approaching your limit. Consider reducing spending this month.';
+        suggestion =
+            'Approaching your limit. Consider reducing spending this month.';
       }
       list.add(CategoryBudget(
         id: cat,
@@ -138,20 +146,114 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
 
   String _getCategoryEmoji(String category) {
     switch (category) {
-      case 'Food & Drink': return '🍕';
-      case 'Shopping': return '🛒';
-      case 'Transport': return '🚗';
-      case 'Entertainment': return '🎬';
-      case 'Groceries': return '🥕';
-      case 'Bills': return '📄';
-      case 'Health': return '🏥';
-      case 'Education': return '📚';
-      default: return '📦';
+      case 'Food & Drink':
+        return '🍕';
+      case 'Shopping':
+        return '🛒';
+      case 'Transport':
+        return '🚗';
+      case 'Entertainment':
+        return '🎬';
+      case 'Groceries':
+        return '🥕';
+      case 'Bills':
+        return '📄';
+      case 'Health':
+        return '🏥';
+      case 'Education':
+        return '📚';
+      default:
+        return '📦';
     }
   }
 
   Future<void> _loadAiSuggestions() async {
     await _fetchAiSuggestions(showDialog: false);
+  }
+
+  List<Map<String, String>> _splitAiSuggestionsIntoSections(String markdown) {
+    final text = _formatAiSuggestionText(markdown);
+    if (text.isEmpty) return const [];
+
+    final normalized = text.replaceAll('\r\n', '\n');
+    final heading = RegExp(
+      r'(?m)^\s*(?:\d+\.\s*)?([A-Za-z][A-Za-z &/\-]{2,}?)\s*:\s*$',
+    );
+    final matches = heading.allMatches(normalized).toList();
+
+    List<Map<String, String>> sectionsFromMatches() {
+      final result = <Map<String, String>>[];
+      for (int i = 0; i < matches.length; i++) {
+        final current = matches[i];
+        final nextStart =
+            (i + 1 < matches.length) ? matches[i + 1].start : normalized.length;
+        final title = (current.group(1) ?? '').trim();
+        if (title.isEmpty) continue;
+        final body = normalized.substring(current.end, nextStart).trim();
+        if (body.isEmpty) continue;
+        result.add({'title': title, 'body': body});
+      }
+      return result;
+    }
+
+    // Primary: parse "1. Something:" headings on their own line.
+    var sections =
+        matches.isNotEmpty ? sectionsFromMatches() : <Map<String, String>>[];
+
+    // Fallback: if headings weren't found, try common known headings.
+    if (sections.isEmpty) {
+      final known = [
+        'General Saving Tips',
+        'Personalized Saving Advice',
+        'Beginner Investment Suggestions',
+      ];
+
+      final found = <Map<String, String>>[];
+      for (final title in known) {
+        final idx = normalized.toLowerCase().indexOf(title.toLowerCase());
+        if (idx == -1) continue;
+        found.add({'title': title, 'start': idx.toString()});
+      }
+      found.sort(
+          (a, b) => int.parse(a['start']!).compareTo(int.parse(b['start']!)));
+
+      if (found.isNotEmpty) {
+        for (int i = 0; i < found.length; i++) {
+          final start = int.parse(found[i]['start']!);
+          final end = (i + 1 < found.length)
+              ? int.parse(found[i + 1]['start']!)
+              : normalized.length;
+          final title = found[i]['title']!;
+          final body = normalized
+              .substring(start + title.length)
+              .replaceFirst(RegExp(r'^\s*:\s*'), '')
+              .trim();
+          if (body.isEmpty) continue;
+          sections.add({'title': title, 'body': body});
+        }
+      }
+    }
+
+    // Only keep the first 3 sections (as per UI requirement).
+    if (sections.length > 3) {
+      sections = sections.take(3).toList();
+    }
+    return sections;
+  }
+
+  String _formatAiSectionBody(String body) {
+    final lines = body.split('\n');
+    final cleaned = lines.map((line) {
+      final trimmed = line.trimRight();
+      if (trimmed.startsWith('* ')) {
+        return '• ${trimmed.substring(2)}';
+      }
+      if (trimmed.startsWith('- ')) {
+        return '• ${trimmed.substring(2)}';
+      }
+      return trimmed;
+    }).toList();
+    return cleaned.join('\n').trim();
   }
 
   String _formatAiSuggestionText(String markdown) {
@@ -224,7 +326,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                 ),
                 Text(
                   'Based on your previous spending patterns',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                  style: AppTextStyles.caption
+                      .copyWith(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 12),
                 Expanded(
@@ -249,10 +352,13 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
   }
 
   BudgetOverview get _budgetOverview {
-    final remaining = (_monthlyBudget - _totalSpent).clamp(0.0, double.infinity);
-    final percentage = _monthlyBudget > 0 ? ((_totalSpent / _monthlyBudget) * 100).round() : 0;
+    final remaining =
+        (_monthlyBudget - _totalSpent).clamp(0.0, double.infinity);
+    final percentage =
+        _monthlyBudget > 0 ? ((_totalSpent / _monthlyBudget) * 100).round() : 0;
     BudgetStatus status = BudgetStatus.onTrack;
-    if (_totalSpent > _monthlyBudget) status = BudgetStatus.overspending;
+    if (_totalSpent > _monthlyBudget)
+      status = BudgetStatus.overspending;
     else if (percentage > 75) status = BudgetStatus.slightlyBehind;
     return BudgetOverview(
       monthlyBudget: _monthlyBudget,
@@ -275,56 +381,69 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
     return '$_currencySymbol${amount.toStringAsFixed(0)}';
   }
 
-  String formatCurrencyFull(double amount) => '$_currencySymbol${amount.toStringAsFixed(0)}';
+  String formatCurrencyFull(double amount) =>
+      '$_currencySymbol${amount.toStringAsFixed(0)}';
 
   Color getStatusColor(dynamic status) {
-    if (status == BudgetStatus.onTrack || status == GoalStatus.onTrack || 
-        status == GoalStatus.ahead || status == CategoryStatus.onTrack || 
+    if (status == BudgetStatus.onTrack ||
+        status == GoalStatus.onTrack ||
+        status == GoalStatus.ahead ||
+        status == CategoryStatus.onTrack ||
         status == CheckinStatus.onTrack) {
       return const Color(0xFF10B981);
     }
-    if (status == BudgetStatus.slightlyBehind || status == GoalStatus.behind || 
-        status == CategoryStatus.warning || status == CheckinStatus.behind) {
+    if (status == BudgetStatus.slightlyBehind ||
+        status == GoalStatus.behind ||
+        status == CategoryStatus.warning ||
+        status == CheckinStatus.behind) {
       return const Color(0xFFF59E0B);
     }
     return const Color(0xFFEF4444);
   }
 
   Color getStatusBg(dynamic status) {
-    if (status == BudgetStatus.onTrack || status == GoalStatus.onTrack || 
-        status == GoalStatus.ahead || status == CategoryStatus.onTrack || 
+    if (status == BudgetStatus.onTrack ||
+        status == GoalStatus.onTrack ||
+        status == GoalStatus.ahead ||
+        status == CategoryStatus.onTrack ||
         status == CheckinStatus.onTrack) {
       return const Color(0xFFD1FAE5);
     }
-    if (status == BudgetStatus.slightlyBehind || status == GoalStatus.behind || 
-        status == CategoryStatus.warning || status == CheckinStatus.behind) {
+    if (status == BudgetStatus.slightlyBehind ||
+        status == GoalStatus.behind ||
+        status == CategoryStatus.warning ||
+        status == CheckinStatus.behind) {
       return const Color(0xFFFEF3C7);
     }
     return const Color(0xFFFEE2E2);
   }
 
   String getStatusLabel(dynamic status) {
-    if (status == BudgetStatus.onTrack || status == GoalStatus.onTrack || 
-        status == CategoryStatus.onTrack || status == CheckinStatus.onTrack) {
+    if (status == BudgetStatus.onTrack ||
+        status == GoalStatus.onTrack ||
+        status == CategoryStatus.onTrack ||
+        status == CheckinStatus.onTrack) {
       return 'On track';
     }
     if (status == BudgetStatus.slightlyBehind) return 'Slightly behind';
-    if (status == BudgetStatus.overspending || status == CategoryStatus.overspending) {
+    if (status == BudgetStatus.overspending ||
+        status == CategoryStatus.overspending) {
       return 'Overspending';
     }
-    if (status == GoalStatus.behind || status == CheckinStatus.behind) return 'Behind';
+    if (status == GoalStatus.behind || status == CheckinStatus.behind)
+      return 'Behind';
     if (status == GoalStatus.ahead) return 'Ahead';
     if (status == CategoryStatus.warning) return 'Warning';
     return '';
   }
 
-  
   Future<void> _showDeleteConfirmation(SavingsGoal goal) async {
     final result = await showCupertinoDialog<bool>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Delete Goal'),
-        content: Text('Are you sure you want to delete "${goal.name}"? This action cannot be undone.'),
+        content: Text(
+            'Are you sure you want to delete "${goal.name}"? This action cannot be undone.'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(false),
@@ -345,7 +464,7 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
     }
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF4F6F8),
@@ -416,7 +535,7 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
     final overview = _budgetOverview;
     final statusColor = getStatusColor(overview.status);
     final isOverspending = overview.status == BudgetStatus.overspending;
-    
+
     Color progressColor;
     if (isOverspending) {
       progressColor = AppColors.error;
@@ -459,7 +578,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                   color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(CupertinoIcons.money_dollar, color: Colors.white, size: 20),
+                child: const Icon(CupertinoIcons.money_dollar,
+                    color: Colors.white, size: 20),
               ),
               const SizedBox(width: 10),
               Text(
@@ -511,7 +631,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: getStatusBg(overview.status),
                   borderRadius: BorderRadius.circular(20),
@@ -614,7 +735,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                   if (index < _goals.length - 1)
                     Padding(
                       padding: const EdgeInsets.only(left: 78),
-                      child: Container(height: 1, color: const Color(0xFFE2E8F0)),
+                      child:
+                          Container(height: 1, color: const Color(0xFFE2E8F0)),
                     ),
                 ],
               );
@@ -627,7 +749,7 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
 
   Widget _buildGoalCard(SavingsGoal goal) {
     final percentage = goal.percentage.round();
-    
+
     return GestureDetector(
       onTap: () async {
         final result = await Navigator.of(context).push(
@@ -643,97 +765,104 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
         _showDeleteConfirmation(goal);
       },
       child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          _buildCircularProgress(
-            percentage: percentage.toDouble(),
-            color: _parseColor(goal.iconBorder),
-            size: 64,
-            child: Container(
-              width: 50,
-              height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            _buildCircularProgress(
+              percentage: percentage.toDouble(),
+              color: _parseColor(goal.iconBorder),
+              size: 64,
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: _parseColor(goal.iconBg),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(goal.emoji, style: const TextStyle(fontSize: 26)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${goal.name} ${goal.emoji}',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    goal.targetDate == 'no timeline'
+                        ? 'no timeline'
+                        : 'Target: ${goal.targetDate}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF64748B)),
+                          children: [
+                            TextSpan(
+                              text: formatCurrency(goal.savedAmount),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const TextSpan(text: ' Saved'),
+                          ],
+                        ),
+                      ),
+                      const Text(' · ',
+                          style: TextStyle(
+                              fontSize: 12, color: Color(0xFF94A3B8))),
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF64748B)),
+                          children: [
+                            TextSpan(
+                              text: formatCurrency(goal.toGo),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const TextSpan(text: ' To Go'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: _parseColor(goal.iconBg),
-                shape: BoxShape.circle,
+                color: const Color(0xFFF4F6F8),
+                borderRadius: BorderRadius.circular(18),
               ),
-              child: Center(
-                child: Text(goal.emoji, style: const TextStyle(fontSize: 26)),
-              ),
+              child: const Icon(CupertinoIcons.pencil,
+                  size: 16, color: Color(0xFF94A3B8)),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${goal.name} ${goal.emoji}',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  goal.targetDate == 'no timeline' ? 'no timeline' : 'Target: ${goal.targetDate}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF94A3B8),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                        children: [
-                          TextSpan(
-                            text: formatCurrency(goal.savedAmount),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          const TextSpan(text: ' Saved'),
-                        ],
-                      ),
-                    ),
-                    const Text(' · ', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                        children: [
-                          TextSpan(
-                            text: formatCurrency(goal.toGo),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          const TextSpan(text: ' To Go'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF4F6F8),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(CupertinoIcons.pencil, size: 16, color: Color(0xFF94A3B8)),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -776,7 +905,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
       children: [
         Row(
           children: [
-            Icon(CupertinoIcons.arrow_up_right, size: 18, color: Colors.blue[900]),
+            Icon(CupertinoIcons.arrow_up_right,
+                size: 18, color: Colors.blue[900]),
             const SizedBox(width: 8),
             const Text(
               'Category Budgets',
@@ -807,7 +937,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                   padding: const EdgeInsets.all(24),
                   child: Text(
                     'Set category budgets in Profile → Savings Settings to see progress here.',
-                    style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                    style: AppTextStyles.body
+                        .copyWith(color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                 )
@@ -960,7 +1091,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                   children: [
                     Row(
                       children: [
-                        const Icon(CupertinoIcons.lightbulb, size: 20, color: Color(0xFFF59E0B)),
+                        const Icon(CupertinoIcons.lightbulb,
+                            size: 20, color: Color(0xFFF59E0B)),
                         const SizedBox(width: 8),
                         Text(
                           '${category.emoji} ${category.name}',
@@ -974,13 +1106,15 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                     ),
                     GestureDetector(
                       onTap: () => Navigator.of(context).pop(),
-                      child: const Icon(CupertinoIcons.xmark, size: 20, color: Color(0xFF94A3B8)),
+                      child: const Icon(CupertinoIcons.xmark,
+                          size: 20, color: Color(0xFF94A3B8)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: statusBg,
                     borderRadius: BorderRadius.circular(10),
@@ -1059,7 +1193,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
       children: [
         Row(
           children: [
-            const Icon(CupertinoIcons.lightbulb, size: 18, color: Color(0xFFF59E0B)),
+            const Icon(CupertinoIcons.lightbulb,
+                size: 18, color: Color(0xFFF59E0B)),
             const SizedBox(width: 8),
             const Text(
               'Smart Suggestions',
@@ -1083,7 +1218,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
             ),
             child: Row(
               children: [
-                const Icon(CupertinoIcons.sparkles, size: 18, color: AppColors.textPrimary),
+                const Icon(CupertinoIcons.sparkles,
+                    size: 18, color: AppColors.textPrimary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -1099,7 +1235,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                 if (_aiSuggestionsLoading)
                   const CupertinoActivityIndicator(radius: 10)
                 else
-                  const Icon(CupertinoIcons.chevron_right, size: 16, color: AppColors.textSecondary),
+                  const Icon(CupertinoIcons.chevron_right,
+                      size: 16, color: AppColors.textSecondary),
               ],
             ),
           ),
@@ -1124,16 +1261,86 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
             ),
           )
         else if (_aiSuggestions != null && _aiSuggestions!.isNotEmpty)
-          _buildAiSuggestionsCard(_aiSuggestions!)
+          _buildAiSuggestionsCards(_aiSuggestions!)
         else
-          ...smartSuggestions.map((suggestion) => _buildSuggestionCard(suggestion)),
+          ...smartSuggestions
+              .map((suggestion) => _buildSuggestionCard(suggestion)),
       ],
     );
   }
 
-  Widget _buildAiSuggestionsCard(String markdown) {
-    // Simple formatting: replace \n with newlines, strip ** for cleaner display
-    final text = _formatAiSuggestionText(markdown);
+  Widget _buildAiSuggestionsCards(String markdown) {
+    final sections = _splitAiSuggestionsIntoSections(markdown);
+
+    // Fallback: if parsing fails, show the raw text in a single card.
+    if (sections.isEmpty) {
+      final text = _formatAiSuggestionText(markdown);
+      return _buildAiSuggestionSingleCard(text);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(CupertinoIcons.lightbulb,
+                size: 16, color: Color(0xFFF59E0B)),
+            const SizedBox(width: 8),
+            Text(
+              'AI-powered tips for you',
+              style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...sections.map((s) {
+          final title = s['title'] ?? '';
+          final body = _formatAiSectionBody(s['body'] ?? '');
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  body,
+                  style: AppTextStyles.body.copyWith(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildAiSuggestionSingleCard(String text) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1152,7 +1359,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
         children: [
           Row(
             children: [
-              const Icon(CupertinoIcons.lightbulb, size: 16, color: Color(0xFFF59E0B)),
+              const Icon(CupertinoIcons.lightbulb,
+                  size: 16, color: Color(0xFFF59E0B)),
               const SizedBox(width: 8),
               Text(
                 'AI-powered tips for you',
@@ -1180,7 +1388,7 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
   Widget _buildSuggestionCard(SmartSuggestion suggestion) {
     Color diffColor;
     Color diffBg;
-    
+
     switch (suggestion.difficulty) {
       case Difficulty.easy:
         diffColor = const Color(0xFF10B981);
@@ -1219,7 +1427,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(CupertinoIcons.lightbulb, size: 16, color: Color(0xFFF59E0B)),
+                    const Icon(CupertinoIcons.lightbulb,
+                        size: 16, color: Color(0xFFF59E0B)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1294,13 +1503,14 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
             children: [
               Expanded(
                 child: GestureDetector(
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  CupertinoPageRoute(builder: (_) => const CreateGoalScreen()),
-                );
-                await _loadGoals();
-              },
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      CupertinoPageRoute(
+                          builder: (_) => const CreateGoalScreen()),
+                    );
+                    await _loadGoals();
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
@@ -1322,13 +1532,14 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
               const SizedBox(width: 10),
               Expanded(
                 child: GestureDetector(
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  CupertinoPageRoute(builder: (_) => const CreateGoalScreen()),
-                );
-                await _loadGoals();
-              },
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      CupertinoPageRoute(
+                          builder: (_) => const CreateGoalScreen()),
+                    );
+                    await _loadGoals();
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
@@ -1378,7 +1589,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border(left: BorderSide(color: Colors.blue[600]!, width: 4)),
+            border:
+                Border(left: BorderSide(color: Colors.blue[600]!, width: 4)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.06),
@@ -1516,7 +1728,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                 ),
                 child: Row(
                   children: [
-                    const Icon(CupertinoIcons.arrow_down_right, size: 14, color: Color(0xFFEF4444)),
+                    const Icon(CupertinoIcons.arrow_down_right,
+                        size: 14, color: Color(0xFFEF4444)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1549,7 +1762,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
       children: [
         Row(
           children: [
-            const Icon(CupertinoIcons.checkmark_alt_circle, size: 18, color: Color(0xFF10B981)),
+            const Icon(CupertinoIcons.checkmark_alt_circle,
+                size: 18, color: Color(0xFF10B981)),
             const SizedBox(width: 8),
             const Text(
               'Weekly Check-in',
@@ -1621,7 +1835,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: statusBg,
                       borderRadius: BorderRadius.circular(12),
@@ -1647,7 +1862,8 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
                   ),
                   child: Row(
                     children: [
-                      const Icon(CupertinoIcons.lightbulb, size: 14, color: Color(0xFFF59E0B)),
+                      const Icon(CupertinoIcons.lightbulb,
+                          size: 14, color: Color(0xFFF59E0B)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1675,13 +1891,13 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
       children: [
         Expanded(
           child: GestureDetector(
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  CupertinoPageRoute(builder: (_) => const CreateGoalScreen()),
-                );
-                await _loadGoals();
-              },
+            onTap: () async {
+              await Navigator.push(
+                context,
+                CupertinoPageRoute(builder: (_) => const CreateGoalScreen()),
+              );
+              await _loadGoals();
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
@@ -1709,13 +1925,13 @@ class _SavingsScreenState extends State<SavingsScreen> with TickerProviderStateM
         const SizedBox(width: 10),
         Expanded(
           child: GestureDetector(
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  CupertinoPageRoute(builder: (_) => const CreateGoalScreen()),
-                );
-                await _loadGoals();
-              },
+            onTap: () async {
+              await Navigator.push(
+                context,
+                CupertinoPageRoute(builder: (_) => const CreateGoalScreen()),
+              );
+              await _loadGoals();
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(

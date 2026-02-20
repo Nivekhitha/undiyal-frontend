@@ -19,12 +19,13 @@ class WeeklyExpenseChart extends StatelessWidget {
     final weekData = List.generate(7, (index) {
       final date = DateTime.now().subtract(Duration(days: 6 - index));
       final dayName = DateFormat('E').format(date); // Mon, Tue, etc.
-      
+
       // Sum transactions for this day
       final dailyAmount = transactions
-          .where((t) => 
-              t.date.year == date.year && 
-              t.date.month == date.month && 
+          .where((t) =>
+              t.type.toLowerCase() == 'expense' &&
+              t.date.year == date.year &&
+              t.date.month == date.month &&
               t.date.day == date.day)
           .fold(0.0, (sum, t) => sum + t.amount);
 
@@ -36,7 +37,9 @@ class WeeklyExpenseChart extends StatelessWidget {
     });
 
     // Find max amount for scaling (min 100 to avoid division by zero or huge bars for tiny amounts)
-    final maxRec = weekData.map((d) => d['amount'] as double).reduce((a, b) => a > b ? a : b);
+    final maxRec = weekData
+        .map((d) => d['amount'] as double)
+        .reduce((a, b) => a > b ? a : b);
     final maxAmount = maxRec > 100 ? maxRec : 100.0;
 
     return Container(
@@ -72,18 +75,20 @@ class WeeklyExpenseChart extends StatelessWidget {
   }) {
     final heightRatio = amount / maxAmount;
     // Cap height at 1.0 (100%) to prevent overflow if max calculation is slightly off
-    final safeRatio = heightRatio > 1.0 ? 1.0 : heightRatio; 
-    
+    final safeRatio = heightRatio > 1.0 ? 1.0 : heightRatio;
+
     // Max height 120, min visible height 4
     final barHeight = 120 * safeRatio;
-    
+
     return Column(
       children: [
         // Amount label
         SizedBox(
           height: 20,
           child: Text(
-            amount > 0 ? '₹${amount > 999 ? '${(amount/1000).toStringAsFixed(1)}k' : amount.toStringAsFixed(0)}' : '',
+            amount > 0
+                ? '₹${amount > 999 ? '${(amount / 1000).toStringAsFixed(1)}k' : amount.toStringAsFixed(0)}'
+                : '',
             style: AppTextStyles.label.copyWith(
               fontSize: 10,
               color: AppColors.textSecondary,

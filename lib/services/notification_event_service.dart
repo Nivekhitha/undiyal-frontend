@@ -4,7 +4,8 @@ import 'sms_expense_service.dart';
 import '../models/transaction_model.dart';
 
 class NotificationEventService {
-  static const EventChannel _channel = EventChannel('undiyal/notification_events');
+  static const EventChannel _channel =
+      EventChannel('undiyal/notification_events');
   static StreamSubscription? _sub;
 
   static void start() {
@@ -25,7 +26,8 @@ class NotificationEventService {
           }
 
           // Try to parse SMS/notification text for transaction
-          final parsed = SmsExpenseService.parseSmsForExpense(text, sender: sender);
+          final parsed =
+              SmsExpenseService.parseSmsForExpense(text, sender: sender);
           if (parsed != null) {
             final amount = parsed['amount'] as double;
             final merchant = parsed['merchant'] as String? ?? 'Expense';
@@ -55,7 +57,8 @@ class NotificationEventService {
               id: 'evt_${DateTime.now().millisecondsSinceEpoch}',
               amount: amount,
               merchant: merchant,
-              category: SmsExpenseService.categorizeExpense(merchant, amount, transactionType: type)['category'],
+              category: SmsExpenseService.categorizeExpense(merchant, amount,
+                  transactionType: type)['category'],
               date: date,
               paymentMethod: paymentMethod,
               isAutoDetected: true,
@@ -65,7 +68,7 @@ class NotificationEventService {
             );
 
             // Save locally (this also emits UI update via TransactionStorageService)
-            await SmsExpenseService.saveTransactions([tx]);
+            await SmsExpenseService.saveTransactionsAndSyncBackend([tx]);
           }
         }
       } catch (e) {

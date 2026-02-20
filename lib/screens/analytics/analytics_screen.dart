@@ -1,10 +1,10 @@
-
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../../services/analytics_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/transaction_storage_service.dart';
 import 'analytics_widgets.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -16,32 +16,44 @@ class AnalyticsScreen extends StatefulWidget {
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   bool _isLoading = true;
-  
+
   // Data State
   double _totalSpent = 0;
   double _monthlyBudget = 5000;
+  double _dailyAvgSpend = 0;
+  double _projectedMonthlySpend = 0;
+  double _expectedSavings = 0;
+  String _burnRateSuggestion = '';
   List<Map<String, dynamic>> _weeklyData = [];
   List<Map<String, dynamic>> _monthlyData = [];
   Map<String, double> _categoryTotals = {};
   List<String> _insights = [];
   StreamSubscription<String>? _settingsSubscription;
+  StreamSubscription<void>? _transactionsUpdatedSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    
+
     // Listen for settings changes and refresh
-    _settingsSubscription = SettingsService.onSettingsChange.listen((settingKey) {
+    _settingsSubscription =
+        SettingsService.onSettingsChange.listen((settingKey) {
       if (settingKey == 'monthly_budget') {
         _loadData();
       }
+    });
+
+    _transactionsUpdatedSubscription =
+        TransactionStorageService.onTransactionsUpdated.listen((_) {
+      unawaited(_loadData());
     });
   }
 
   @override
   void dispose() {
     _settingsSubscription?.cancel();
+    _transactionsUpdatedSubscription?.cancel();
     super.dispose();
   }
 
@@ -53,16 +65,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         setState(() {
           _totalSpent = (data['totalSpent'] as num).toDouble();
           _monthlyBudget = budget;
-          
+
+          _dailyAvgSpend = ((data['dailyAvgSpend'] as num?) ?? 0).toDouble();
+          _projectedMonthlySpend =
+              ((data['projectedMonthlySpend'] as num?) ?? 0).toDouble();
+          _expectedSavings =
+              ((data['expectedSavings'] as num?) ?? 0).toDouble();
+          _burnRateSuggestion = (data['burnRateSuggestion'] as String?) ?? '';
+
           // Safe List Casting
-          _weeklyData = (data['weeklyData'] as List).map((item) => Map<String, dynamic>.from(item)).toList();
-          _monthlyData = (data['monthlyData'] as List).map((item) => Map<String, dynamic>.from(item)).toList();
-          
+          _weeklyData = (data['weeklyData'] as List)
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+          _monthlyData = ((data['monthlyData'] as List?) ?? const [])
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+
           // Safe Map Casting
           _categoryTotals = Map<String, double>.from(data['categoryTotals']);
-          
+
           _insights = List<String>.from(data['insights']);
-          
+
           _isLoading = false;
         });
       }
@@ -105,7 +128,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     Text('Analytics', style: AppTextStyles.h1),
                     // Month Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: CupertinoColors.white,
                         borderRadius: BorderRadius.circular(20),
@@ -117,7 +141,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
               ),
             ),
-            
+
             // 1. Budget Ring
             SliverToBoxAdapter(
               child: Padding(
@@ -125,6 +149,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: BudgetRingCard(
                   spent: _totalSpent,
                   budget: _monthlyBudget,
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+            // 1b. Burn Rate
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: BurnRateCard(
+                  dailyAvgSpend: _dailyAvgSpend,
+                  projectedMonthlySpend: _projectedMonthlySpend,
+                  expectedSavings: _expectedSavings,
+                  suggestion: _burnRateSuggestion,
                 ),
               ),
             ),
@@ -181,68 +220,71 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: Text('Spending by Category', style: AppTextStyles.h3),
               ),
             ),
-            
+
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-            sortedCategories.isEmpty 
-             ? SliverToBoxAdapter(
-                 child: Padding(
-                   padding: const EdgeInsets.all(40),
-                   child: Column(
-                     children: [
-                       const Text('👀', style: TextStyle(fontSize: 48)),
-                       const SizedBox(height: 16),
-                       Text('No spending yet', style: AppTextStyles.h3),
-                       const SizedBox(height: 8),
-                       Text(
-                         'Start tracking to see your stats!',
-                         style: AppTextStyles.bodySecondary,
-                         textAlign: TextAlign.center,
-                       ),
-                     ],
-                   ),
-                 ),
-               )
-             : SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final cat = sortedCategories[index];
-                      final percentage = _totalSpent > 0 ? (cat.value / _totalSpent) * 100 : 0.0;
-                      
-                      // Staggered Animation Wrapper
-                      return TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0.0, end: 1.0),
-                        duration: Duration(milliseconds: 400 + (index * 100)),
-                        curve: Curves.easeOutQuad,
-                        builder: (context, value, child) {
-                          // Clamp opacity to valid range
-                          final safeOpacity = value.clamp(0.0, 1.0);
-                          return Transform.translate(
-                            offset: Offset(0, 20 * (1 - safeOpacity)),
-                            child: Opacity(
-                              opacity: safeOpacity,
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: CategoryBreakdownTile(
-                                  category: cat.key,
-                                  amount: cat.value,
-                                  percentage: percentage,
-                                  onTap: () {},
+            sortedCategories.isEmpty
+                ? SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(40),
+                      child: Column(
+                        children: [
+                          const Text('👀', style: TextStyle(fontSize: 48)),
+                          const SizedBox(height: 16),
+                          Text('No spending yet', style: AppTextStyles.h3),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Start tracking to see your stats!',
+                            style: AppTextStyles.bodySecondary,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final cat = sortedCategories[index];
+                          final percentage = _totalSpent > 0
+                              ? (cat.value / _totalSpent) * 100
+                              : 0.0;
+
+                          // Staggered Animation Wrapper
+                          return TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            duration:
+                                Duration(milliseconds: 400 + (index * 100)),
+                            curve: Curves.easeOutQuad,
+                            builder: (context, value, child) {
+                              // Clamp opacity to valid range
+                              final safeOpacity = value.clamp(0.0, 1.0);
+                              return Transform.translate(
+                                offset: Offset(0, 20 * (1 - safeOpacity)),
+                                child: Opacity(
+                                  opacity: safeOpacity,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: CategoryBreakdownTile(
+                                      category: cat.key,
+                                      amount: cat.value,
+                                      percentage: percentage,
+                                      onTap: () {},
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                    childCount: sortedCategories.length,
+                        childCount: sortedCategories.length,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 48)),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 48)),
           ],
         ),
       ),

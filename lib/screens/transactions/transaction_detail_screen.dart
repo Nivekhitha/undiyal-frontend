@@ -22,6 +22,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   bool _isRecurring = false;
   late String _currentCategory;
 
+  bool get _isCredit => widget.transaction.type == 'credit';
+
+  String get _displayMerchant {
+    final m = widget.transaction.merchant.trim();
+    if (m.isEmpty) return _isCredit ? 'Bank Transfer' : 'Expense';
+    final lower = m.toLowerCase();
+    if (lower == 'a' || lower == 'a/c' || lower == 'ac') {
+      return 'Bank Transfer';
+    }
+    return m;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,18 +93,22 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.3),
+                          color: _isCredit
+                              ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                              : AppColors.primary.withValues(alpha: 0.3),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          _getCategoryIcon(widget.transaction.category),
+                          _isCredit
+                              ? CupertinoIcons.arrow_down_circle
+                              : _getCategoryIcon(widget.transaction.category),
                           color: AppColors.textOnCard,
                           size: 40,
                         ),
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        widget.transaction.merchant,
+                        _displayMerchant,
                         style: AppTextStyles.h2.copyWith(
                           color: AppColors.textOnCard,
                         ),
@@ -103,21 +119,23 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            _currentCategory,
+                            _isCredit ? 'Received' : _currentCategory,
                             style: AppTextStyles.body.copyWith(
-                              color: AppColors.textOnCard.withValues(alpha: 0.7),
+                              color:
+                                  AppColors.textOnCard.withValues(alpha: 0.7),
                             ),
                           ),
                           if (widget.transaction.isAutoDetected) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppColors.primary.withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                'Auto',
+                                _isCredit ? 'Credit' : 'Auto',
                                 style: AppTextStyles.label.copyWith(
                                   fontSize: 11,
                                   color: AppColors.textOnCard,
@@ -128,7 +146,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           ],
                         ],
                       ),
-                      if (widget.transaction.isAutoDetected && widget.transaction.confidenceScore != null) ...[
+                      if (widget.transaction.isAutoDetected &&
+                          widget.transaction.confidenceScore != null) ...[
                         const SizedBox(height: 4),
                         Text(
                           'Confidence: ${(widget.transaction.confidenceScore! * 100).toStringAsFixed(0)}%',
@@ -140,9 +159,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       ],
                       const SizedBox(height: 24),
                       Text(
-                        '-₹${widget.transaction.amount.toStringAsFixed(2)}',
+                        '${_isCredit ? '+' : '-'}₹${widget.transaction.amount.toStringAsFixed(2)}',
                         style: AppTextStyles.h1.copyWith(
-                          color: AppColors.primary,
+                          color: _isCredit
+                              ? const Color(0xFF10B981)
+                              : AppColors.primary,
                           fontSize: 42,
                         ),
                       ),
@@ -738,7 +759,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   void _showCategoryPicker() {
     const categories = AppConstants.categories;
-    
+
     showCupertinoModalPopup(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
@@ -759,7 +780,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             child: Text(
               category,
               style: TextStyle(
-                fontWeight: _currentCategory == category ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: _currentCategory == category
+                    ? FontWeight.w600
+                    : FontWeight.normal,
                 color: _currentCategory == category ? AppColors.primary : null,
               ),
             ),

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
@@ -56,7 +55,8 @@ class InsightCard extends StatelessWidget {
                 color: AppColors.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(CupertinoIcons.lightbulb_fill, color: AppColors.primary, size: 20),
+              child: const Icon(CupertinoIcons.lightbulb_fill,
+                  color: AppColors.primary, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -80,13 +80,13 @@ class BudgetRingCard extends StatelessWidget {
   const BudgetRingCard({
     super.key,
     required this.spent,
-    required this.budget, 
+    required this.budget,
   });
 
   @override
   Widget build(BuildContext context) {
     if (budget <= 0) return const SizedBox.shrink(); // Prevent division by zero
-    
+
     // Clamp progress to valid range and handle edge cases
     final progress = (spent / budget).clamp(0.0, 1.0);
     if (progress.isNaN || progress.isInfinite) {
@@ -114,17 +114,17 @@ class BudgetRingCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Monthly Budget', style: AppTextStyles.label.copyWith(fontSize: 14)),
+                    Text('Monthly Budget',
+                        style: AppTextStyles.label.copyWith(fontSize: 14)),
                     const SizedBox(height: 4),
                     AnimatedCounter(
                       value: spent,
                       prefix: '₹',
                       style: AppTextStyles.h1.copyWith(fontSize: 36),
                     ),
-                    Text(
-                      'of ₹${budget.toStringAsFixed(0)}', 
-                      style: AppTextStyles.bodySecondary.copyWith(fontSize: 14)
-                    ),
+                    Text('of ₹${budget.toStringAsFixed(0)}',
+                        style:
+                            AppTextStyles.bodySecondary.copyWith(fontSize: 14)),
                   ],
                 ),
                 SizedBox(
@@ -148,9 +148,11 @@ class BudgetRingCard extends StatelessWidget {
                           // Clamp value to valid range for CircularProgressIndicator
                           final safeValue = value.clamp(0.0, 1.0);
                           Color color = const Color(0xFF34D399); // Mint Green
-                          if (safeValue > 0.6) color = const Color(0xFFFBBF24); // Amber
-                          if (safeValue > 0.9) color = const Color(0xFFF87171); // Red
-                          
+                          if (safeValue > 0.6)
+                            color = const Color(0xFFFBBF24); // Amber
+                          if (safeValue > 0.9)
+                            color = const Color(0xFFF87171); // Red
+
                           return CircularProgressIndicator(
                             value: safeValue,
                             color: color,
@@ -173,6 +175,116 @@ class BudgetRingCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// --- Burn Rate Card (NEW) ---
+class BurnRateCard extends StatelessWidget {
+  final double dailyAvgSpend;
+  final double projectedMonthlySpend;
+  final double expectedSavings;
+  final String suggestion;
+
+  const BurnRateCard({
+    super.key,
+    required this.dailyAvgSpend,
+    required this.projectedMonthlySpend,
+    required this.expectedSavings,
+    required this.suggestion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final savingsIsPositive = expectedSavings >= 0;
+    final savingsLabel =
+        savingsIsPositive ? 'Expected savings' : 'Expected shortfall';
+    final savingsValue = expectedSavings.abs();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Burn Rate', style: AppTextStyles.h3),
+          const SizedBox(height: 6),
+          Text(
+            'A calm projection based on your spending pace so far.',
+            style: AppTextStyles.bodySecondary.copyWith(fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          _MetricRow(
+            label: 'Daily average spend',
+            value: dailyAvgSpend,
+          ),
+          const SizedBox(height: 10),
+          _MetricRow(
+            label: 'Projected monthly spend',
+            value: projectedMonthlySpend,
+          ),
+          const SizedBox(height: 10),
+          _MetricRow(
+            label: savingsLabel,
+            value: savingsValue,
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
+              border:
+                  Border.all(color: AppColors.primary.withValues(alpha: 0.08)),
+            ),
+            child: Text(
+              suggestion,
+              style: AppTextStyles.body.copyWith(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricRow extends StatelessWidget {
+  final String label;
+  final double value;
+
+  const _MetricRow({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: AppTextStyles.label.copyWith(fontSize: 13),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '₹${value.isFinite ? value.toStringAsFixed(0) : '0'}',
+          style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 }
@@ -234,8 +346,8 @@ class MonthlyActivityChart extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: data.asMap().entries.map((entry) {
-               final index = entry.key;
-               final d = entry.value;
+              final index = entry.key;
+              final d = entry.value;
               return _buildMonthBar(
                 context,
                 label: d['label'] as String,
@@ -251,14 +363,14 @@ class MonthlyActivityChart extends StatelessWidget {
     );
   }
 
-  Widget _buildMonthBar(BuildContext context, {
-    required String label, 
-    required double amount, 
-    required double maxAmount, 
-    required bool isCurrentMonth, 
-    required int index
-  }) {
-    Color barColor = isCurrentMonth ? AppColors.primary : AppColors.chartInactive;
+  Widget _buildMonthBar(BuildContext context,
+      {required String label,
+      required double amount,
+      required double maxAmount,
+      required bool isCurrentMonth,
+      required int index}) {
+    Color barColor =
+        isCurrentMonth ? AppColors.primary : AppColors.chartInactive;
 
     return Expanded(
       child: Column(
@@ -278,7 +390,9 @@ class MonthlyActivityChart extends StatelessWidget {
                   style: AppTextStyles.caption.copyWith(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: isCurrentMonth ? AppColors.primary : AppColors.textSecondary,
+                    color: isCurrentMonth
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
                   ),
                 ),
               );
@@ -297,27 +411,30 @@ class MonthlyActivityChart extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: barColor,
                   borderRadius: BorderRadius.circular(8),
-                  gradient: isCurrentMonth ? LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      AppColors.primary,
-                      AppColors.primary.withValues(alpha: 0.7),
-                    ],
-                  ) : null,
+                  gradient: isCurrentMonth
+                      ? LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            AppColors.primary,
+                            AppColors.primary.withValues(alpha: 0.7),
+                          ],
+                        )
+                      : null,
                 ),
               );
             },
           ),
           const SizedBox(height: 12),
-          Text(
-            label, 
-            style: AppTextStyles.label.copyWith(
-              color: isCurrentMonth ? AppColors.primary : AppColors.textSecondary,
-              fontWeight: isCurrentMonth ? FontWeight.bold : FontWeight.normal,
-              fontSize: 12,
-            )
-          ),
+          Text(label,
+              style: AppTextStyles.label.copyWith(
+                color: isCurrentMonth
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
+                fontWeight:
+                    isCurrentMonth ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12,
+              )),
         ],
       ),
     );
@@ -362,8 +479,8 @@ class SpendingTrendChart extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: data.asMap().entries.map((entry) {
-               final index = entry.key;
-               final d = entry.value;
+              final index = entry.key;
+              final d = entry.value;
               return _buildBar(
                 context,
                 label: d['label'] as String,
@@ -379,7 +496,12 @@ class SpendingTrendChart extends StatelessWidget {
     );
   }
 
-  Widget _buildBar(BuildContext context, {required String label, required double amount, required double maxAmount, required bool isToday, required int index}) {
+  Widget _buildBar(BuildContext context,
+      {required String label,
+      required double amount,
+      required double maxAmount,
+      required bool isToday,
+      required int index}) {
     // Determine color based on amount relative to max
     // High bars get a slightly more intense color
     Color barColor = isToday ? AppColors.primary : AppColors.chartInactive;
@@ -404,13 +526,11 @@ class SpendingTrendChart extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
-          Text(
-            label, 
-            style: AppTextStyles.label.copyWith(
-              color: isToday ? AppColors.primary : AppColors.textSecondary,
-              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-            )
-          ),
+          Text(label,
+              style: AppTextStyles.label.copyWith(
+                color: isToday ? AppColors.primary : AppColors.textSecondary,
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+              )),
         ],
       ),
     );
@@ -479,7 +599,9 @@ class CategoryBreakdownTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(category, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
+                  Text(category,
+                      style: AppTextStyles.body
+                          .copyWith(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Stack(
                     children: [
@@ -517,7 +639,8 @@ class CategoryBreakdownTile extends StatelessWidget {
                 AnimatedCounter(
                   value: amount,
                   prefix: '₹',
-                  style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
+                  style:
+                      AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
                 ),
                 Text(
                   '${percentage.toStringAsFixed(0)}%',

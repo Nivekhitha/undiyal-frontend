@@ -18,7 +18,7 @@ class BalanceSmsParser {
       caseSensitive: false,
     ),
     'CUB': RegExp(
-      r'(?:Available\s*Balance|Avail\s*Bal|A\/c\s*Balance).*?(?:INR|Rs\.?)\s*([0-9,]+(?:\.\d{1,2})?)',
+      r'(?:Available\s*Balance|Avail\s*Bal|A\/c\s*Balance|Bal\s*in\s*Savings).*?(?:INR|Rs\.?)+\s*([0-9,]+(?:\.\d{1,2})?)',
       caseSensitive: false,
     ),
     'IOB': RegExp(
@@ -45,13 +45,19 @@ class BalanceSmsParser {
 
   /// Bank identifiers in SMS sender or body
   static final Map<String, List<String>> _bankIdentifiers = {
-    'BOB': ['Bank of Baroda', 'BOB', 'MConnect+'],
-    'CUB': ['City Union Bank', 'CUB'],
-    'IOB': ['Indian Overseas Bank', 'IOB'],
-    'HDFC': ['HDFC Bank', 'HDFC'],
-    'AXIS': ['Axis Bank', 'AXIS'],
-    'SBI': ['SBI', 'State Bank'],
-    'INDIAN': ['Indian Bank', 'INDIAN', 'IndBank'],
+    'BOB': ['Bank of Baroda', 'BOB', 'MConnect+', 'bobbank', 'bankofbaroda'],
+    'CUB': [
+      'City Union Bank',
+      'CUB',
+      'cubank',
+      'cu bank',
+      'cityunionbank',
+    ],
+    'IOB': ['Indian Overseas Bank', 'IOB', 'iobbank', 'indianoverseasbank'],
+    'HDFC': ['HDFC Bank', 'HDFC', 'hdfcbank'],
+    'AXIS': ['Axis Bank', 'AXIS', 'axisbank'],
+    'SBI': ['SBI', 'State Bank', 'sbibank', 'statebankofindia'],
+    'INDIAN': ['Indian Bank', 'INDIAN', 'IndBank', 'indianbank'],
   };
 
   static final RegExp _transactionActionRegex = RegExp(
@@ -70,7 +76,13 @@ class BalanceSmsParser {
         normalizedBody.contains('account balance') ||
         normalizedBody.contains('clear bal') ||
         normalizedBody.contains('closing balance') ||
-        normalizedBody.contains('balance is');
+        normalizedBody.contains('balance is') ||
+        // Missed-call balance alerts often use short forms.
+        normalizedBody.contains('missed call alert') ||
+        normalizedBody.contains('bal in savings') ||
+        normalizedBody.contains('bal in sav') ||
+        RegExp(r'\bbal\s+in\s+savings\b', caseSensitive: false)
+            .hasMatch(normalizedBody);
 
     if (!hasBalanceKeyword) return false;
 
@@ -93,6 +105,18 @@ class BalanceSmsParser {
       'avlbal',
       'avl bal:',
       'avl bal is',
+      'cub missed call alert',
+      'bal in savings',
+      'bal in savings no',
+      'a/c balance',
+      'account balance',
+      'cub',
+      'indian bank',
+      'bank of baroda',
+      'hdfc bank',
+      'axis bank',
+      'sbi',
+      'bob',
 
       // Account variations
       'a/c bal',
@@ -100,6 +124,7 @@ class BalanceSmsParser {
       'account balance',
       'acct balance',
       'ac balance',
+      'missed call alert',
 
       // Short formats
       'bal:',

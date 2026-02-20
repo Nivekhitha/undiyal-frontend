@@ -18,13 +18,13 @@ class AppInitService {
       final hasCleaned = prefs.getBool('has_cleaned_v2_data') ?? false;
 
       debugPrint('Checking cleanup status: has_cleaned_v2_data = $hasCleaned');
-      
+
       if (!hasCleaned) {
         debugPrint('Performing one-time data cleanup...');
         await TransactionStorageService.clearAllData();
         await prefs.setBool('has_cleaned_v2_data', true);
         debugPrint('One-time cleanup complete.');
-        
+
         // Verify the flag was set
         final verifyCleaned = prefs.getBool('has_cleaned_v2_data');
         debugPrint('Verification: has_cleaned_v2_data = $verifyCleaned');
@@ -41,9 +41,24 @@ class AppInitService {
       await smsListener.initialize();
       debugPrint('SMS notification listener initialized');
 
-      // Start native EventChannel stream for in-app real-time notification events
-      NotificationEventService.start();
-      debugPrint('Notification EventChannel listener started');
+      // Start native EventChannel stream only as a fallback.
+      // Running both SmsNotificationListener + EventChannel at the same time can
+      // process the same SMS notification twice (creating duplicates).
+      try {
+        final status = await SmsNotificationListener.getListenerStatus();
+        final isActive = status['isActive'] == true;
+
+        if (!isActive) {
+          NotificationEventService.start();
+          debugPrint('Notification EventChannel listener started (fallback)');
+        } else {
+          debugPrint(
+              'Skipping EventChannel listener because SmsNotificationListener is active');
+        }
+      } catch (_) {
+        // If status check fails, avoid starting both by default.
+        debugPrint('Skipping EventChannel listener (status check failed)');
+      }
 
       // Only run SMS detection if permission was already granted previously
       final smsPermissionGranted = await SmsExpenseService.hasSmsPermission();
@@ -51,8 +66,27 @@ class AppInitService {
         debugPrint('SMS permission already granted, running inbox scan...');
         await AppInitService.initializeSmsDetection();
       } else {
-        debugPrint('SMS permission not yet granted - will be requested via permission screen');
+        debugPrint(
+            'SMS permission not yet granted - will be requested via permission screen');
       }
+
+      // Best-effort: clean up any duplicate auto-detected transactions that may
+      // have been saved by concurrent ingestion paths in earlier sessions.
+      unawaited(() async {
+        try {
+          final stored = await SmsExpenseService.getStoredTransactions();
+          await SmsExpenseService.saveTransactions(
+            stored,
+            emitEvents: false,
+            updateWidget: false,
+          );
+        } catch (_) {}
+      }());
+
+      // Best-effort: sync any locally cached SMS transactions to backend.
+      // Non-blocking and deduped by ExpenseService fingerprints.
+      unawaited(SmsExpenseService.syncStoredSmsTransactionsToBackend(
+          maxTransactions: 50));
     } catch (e) {
       debugPrint('Error initializing app services: $e');
     }
@@ -72,7 +106,8 @@ class AppInitService {
         final startOfMonth = DateTime(now.year, now.month, 1);
         final daysSinceStartOfMonth = now.difference(startOfMonth).inDays;
 
-        debugPrint('Analyzing SMS from last $daysSinceStartOfMonth days (current month)');
+        debugPrint(
+            'Analyzing SMS from last $daysSinceStartOfMonth days (current month)');
 
         // Read SMS from current month
         final detectedTransactions =
@@ -82,7 +117,8 @@ class AppInitService {
         );
 
         if (detectedTransactions.isNotEmpty) {
-          debugPrint('Detected & Saved ${detectedTransactions.length} transactions from SMS');
+          debugPrint(
+              'Detected & Saved ${detectedTransactions.length} transactions from SMS');
         } else {
           debugPrint('No new transactions detected from SMS');
         }

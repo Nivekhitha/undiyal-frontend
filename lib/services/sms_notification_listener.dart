@@ -13,27 +13,29 @@ import '../models/transaction_model.dart';
 /// More battery efficient than constant SMS scanning
 @pragma('vm:entry-point')
 class SmsNotificationListener {
-      /// Check notification access permission directly
-      static Future<bool> hasNotificationPermission() async {
-        try {
-          return await NotificationsListener.hasPermission ?? false;
-        } catch (_) {
-          return false;
-        }
-      }
-    /// Stream controller for real-time expense updates
-    static final StreamController<Transaction> _expenseUpdateController =
+  /// Check notification access permission directly
+  static Future<bool> hasNotificationPermission() async {
+    try {
+      return await NotificationsListener.hasPermission ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Stream controller for real-time expense updates
+  static final StreamController<Transaction> _expenseUpdateController =
       StreamController<Transaction>.broadcast();
 
-    /// Stream that emits when a new expense is detected
-    static Stream<Transaction> get onExpenseUpdate =>
+  /// Stream that emits when a new expense is detected
+  static Stream<Transaction> get onExpenseUpdate =>
       _expenseUpdateController.stream;
   static const String _listenerEnabledKey = 'sms_listener_enabled';
   static bool _isProcessingBalanceMessage = false;
-  
+
   @pragma('vm:entry-point')
-  static final SmsNotificationListener _instance = SmsNotificationListener._internal();
-  
+  static final SmsNotificationListener _instance =
+      SmsNotificationListener._internal();
+
   final _smsController = StreamController<Map<String, dynamic>>.broadcast();
   StreamSubscription<dynamic>? _subscription;
   bool _isListening = false;
@@ -121,12 +123,13 @@ class SmsNotificationListener {
           _onNotificationReceived(event);
         }
       });
-      debugPrint('✅ Listening on NotificationsListener.receivePort, subscription=$_subscription');
+      debugPrint(
+          '✅ Listening on NotificationsListener.receivePort, subscription=$_subscription');
 
       // Check and request permission
       final hasPermission = await NotificationsListener.hasPermission ?? false;
       debugPrint('Notification permission status: $hasPermission');
-      
+
       if (!hasPermission) {
         debugPrint('❌ Notification access permission NOT granted');
         await NotificationsListener.openPermissionSettings();
@@ -136,7 +139,7 @@ class SmsNotificationListener {
       // Start service if not already running
       final isRunning = await NotificationsListener.isRunning;
       debugPrint('Notification service running: $isRunning');
-      
+
       if (!isRunning!) {
         await NotificationsListener.startService();
         debugPrint('✅ Notification service started');
@@ -194,16 +197,16 @@ class SmsNotificationListener {
   /// even if the user never toggled the setting manually.
   Future<void> initialize() async {
     debugPrint('=== SmsNotificationListener.initialize() called ===');
-    
+
     final enabled = await isListenerEnabled();
     debugPrint('Listener preference enabled: $enabled');
-    
+
     if (enabled) {
       // User explicitly enabled it before — start it
       await startListener();
       return;
     }
-    
+
     // Even if preference is not set, auto-enable if permission is already granted.
     // This handles the case where the user granted notification access
     // (e.g. during onboarding) but the preference was never saved.
@@ -211,7 +214,8 @@ class SmsNotificationListener {
       final hasPermission = await NotificationsListener.hasPermission ?? false;
       debugPrint('Notification access permission: $hasPermission');
       if (hasPermission) {
-        debugPrint('Permission granted but preference not set — auto-enabling listener');
+        debugPrint(
+            'Permission granted but preference not set — auto-enabling listener');
         await setListenerEnabled(true);
       } else {
         debugPrint('No notification access permission — listener not started');
@@ -227,7 +231,7 @@ class SmsNotificationListener {
     debugPrint('Package: ${event.packageName}');
     debugPrint('Title: ${event.title}');
     debugPrint('Text: ${event.text?.take(100)}...');
-    
+
     if (isSmsNotification(event)) {
       final smsData = extractSmsData(event);
       if (smsData != null) {
@@ -263,12 +267,12 @@ class SmsNotificationListener {
       final title = event.title ?? '';
       final text = event.text ?? '';
       final body = text;
-      
+
       // Extract both merchant and SMS type from title
       final extracted = _extractMerchantAndTypeFromTitle(title);
       final sender = extracted['merchant'];
       final smsType = extracted['type'];
-      
+
       return {
         'body': body,
         'sender': sender,
@@ -286,7 +290,7 @@ class SmsNotificationListener {
   Map<String, String> _extractMerchantAndTypeFromTitle(String title) {
     String merchant = title;
     String smsType = 'Service'; // Default to Service
-    
+
     // Remove common prefixes
     final prefixes = ['CP-', 'VM-', 'AD-', 'DM-', 'TD-', 'QP-', 'JK-'];
     for (final prefix in prefixes) {
@@ -295,7 +299,7 @@ class SmsNotificationListener {
         break;
       }
     }
-    
+
     // Detect SMS type based on suffix
     if (merchant.endsWith('-S')) {
       smsType = 'Service'; // Transactional
@@ -309,22 +313,24 @@ class SmsNotificationListener {
     } else if (merchant.endsWith('-T')) {
       smsType = 'Transactional'; // Older format
       merchant = merchant.substring(0, merchant.length - 2);
-    } else if (merchant.endsWith('-D') || merchant.endsWith('-A') || merchant.endsWith('-R')) {
+    } else if (merchant.endsWith('-D') ||
+        merchant.endsWith('-A') ||
+        merchant.endsWith('-R')) {
       // These are also transactional but use different suffixes
       smsType = 'Service';
       merchant = merchant.substring(0, merchant.length - 2);
     }
-    
+
     // Clean up remaining dashes and make readable
     merchant = merchant.replaceAll('-', ' ');
-    
+
     // Capitalize each word
     final words = merchant.split(' ');
     merchant = words.map((w) {
       if (w.isEmpty) return w;
       return w[0].toUpperCase() + w.substring(1).toLowerCase();
     }).join(' ');
-    
+
     return {
       'merchant': merchant.isNotEmpty ? merchant : 'Bank Transfer',
       'type': smsType,
@@ -338,32 +344,49 @@ class SmsNotificationListener {
       final sender = smsData['sender'] as String? ?? '';
       final smsType = smsData['smsType'] as String? ?? 'Service';
       final timestamp = smsData['timestamp'] as int?;
-      
+
       debugPrint('=== PROCESSING NOTIFICATION ===');
       debugPrint('Sender: $sender');
       debugPrint('SMS Type: $smsType');
       debugPrint('Body: ${body.take(100)}...');
       debugPrint('Timestamp: $timestamp');
-      
+
       // Skip promotional SMS
       if (smsType == 'Promotional') {
         debugPrint('❌ Promotional SMS detected, ignoring');
         return;
       }
 
+      // Balance updates: if it's a balance-only message, store balance and stop.
+      // This keeps balance alerts from being misclassified as transactions.
+      if (BalanceSmsParser.isBalanceOnlySms(body)) {
+        final balanceData = BalanceSmsParser.parseBalanceSms(body, sender);
+        if (balanceData != null) {
+          final detectedBank = (balanceData['bank'] as String?) ?? 'Unknown';
+          final balance = balanceData['balance'] as double;
+          await BalanceSmsParser.storeBalance(detectedBank, balance);
+          debugPrint(
+              '✅ Balance stored from notification: $detectedBank - ₹$balance');
+          return;
+        }
+      }
+
       // Balance Setup Mode (user-triggered): attempt BALANCE-ONLY parse
       // while still allowing normal transaction parsing to continue.
-      final waitingSession = await BalanceDetectionModeService.getActiveSession();
+      final waitingSession =
+          await BalanceDetectionModeService.getActiveSession();
       if (waitingSession != null && BalanceSmsParser.isBalanceOnlySms(body)) {
         if (_isProcessingBalanceMessage) {
-          debugPrint('⏳ Balance detection already in progress, skipping balance-only event');
+          debugPrint(
+              '⏳ Balance detection already in progress, skipping balance-only event');
           return;
         }
 
         final balanceData = BalanceSmsParser.parseBalanceSms(body, sender);
         if (balanceData != null) {
           final detectedBank = balanceData['bank'] as String? ?? '';
-          if (detectedBank != 'Unknown' && detectedBank != waitingSession.bankCode) {
+          if (detectedBank != 'Unknown' &&
+              detectedBank != waitingSession.bankCode) {
             debugPrint(
                 'ℹ️ Waiting for ${waitingSession.bankCode}, received $detectedBank. Ignored.');
           } else {
@@ -382,7 +405,8 @@ class SmsNotificationListener {
                 return;
               }
 
-              await BalanceSmsParser.storeBalance(waitingSession.bankCode, balance);
+              await BalanceSmsParser.storeBalance(
+                  waitingSession.bankCode, balance);
               await NotificationService.showBalanceNotification(
                 bank: waitingSession.bankCode,
                 balance: balance,
@@ -402,7 +426,8 @@ class SmsNotificationListener {
 
       // Transaction Mode (default): parse only transaction details.
       // Ignore any available balance values in these messages.
-      final parsedData = SmsExpenseService.parseSmsForExpense(body, sender: sender);
+      final parsedData =
+          SmsExpenseService.parseSmsForExpense(body, sender: sender);
       if (parsedData != null) {
         debugPrint(
             '✅ EXPENSE SMS: ${parsedData['merchant']} - Rs.${parsedData['amount']}');
@@ -445,20 +470,20 @@ class SmsNotificationListener {
             type: parsedData['type'] ?? 'expense',
           );
 
-            await SmsExpenseService.saveTransactions([transaction]);
+          await SmsExpenseService.saveTransactionsAndSyncBackend([transaction]);
 
-            // Emit real-time expense event
-            _expenseUpdateController.add(transaction);
+          // Emit real-time expense event
+          _expenseUpdateController.add(transaction);
 
-            // Show notification for new transaction
-            await NotificationService.showExpenseNotification(
+          // Show notification for new transaction
+          await NotificationService.showExpenseNotification(
             amount: parsedData['amount'],
             date: timestamp != null
-              ? DateTime.fromMillisecondsSinceEpoch(timestamp)
-              : DateTime.now(),
-            );
+                ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+                : DateTime.now(),
+          );
 
-            debugPrint(
+          debugPrint(
               '✅ Transaction saved and event emitted: ${transaction.merchant} - ₹${transaction.amount}');
         } else {
           debugPrint('❌ Duplicate transaction detected, skipping');

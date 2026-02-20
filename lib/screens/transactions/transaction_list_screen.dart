@@ -25,6 +25,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
   StreamSubscription<Transaction>? _expenseSub;
   StreamSubscription<Transaction>? _transactionAddedSub;
+  StreamSubscription<void>? _transactionsUpdatedSub;
 
   final List<String> _filterOptions = [
     'All',
@@ -50,13 +51,19 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
       }
     });
 
-    _transactionAddedSub = TransactionStorageService.onTransactionAdded.listen((tx) {
+    _transactionAddedSub =
+        TransactionStorageService.onTransactionAdded.listen((tx) {
       final exists = _transactions.any((t) => t.id == tx.id);
       if (!exists) {
         setState(() {
           _transactions.insert(0, tx);
         });
       }
+    });
+
+    _transactionsUpdatedSub =
+        TransactionStorageService.onTransactionsUpdated.listen((_) {
+      unawaited(_loadTransactions());
     });
   }
 
@@ -72,6 +79,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   void dispose() {
     _expenseSub?.cancel();
     _transactionAddedSub?.cancel();
+    _transactionsUpdatedSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -88,12 +96,14 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     // Apply filters
     List<Transaction> filteredTransactions = _transactions.where((transaction) {
       final matchesSearch = transaction.merchant
-          .toLowerCase()
-          .contains(_searchQuery.toLowerCase()) ||
-          transaction.category.toLowerCase().contains(_searchQuery.toLowerCase());
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase()) ||
+          transaction.category
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase());
 
-      final matchesFilter = _selectedFilter == 'All' ||
-          transaction.category == _selectedFilter;
+      final matchesFilter =
+          _selectedFilter == 'All' || transaction.category == _selectedFilter;
 
       return matchesSearch && matchesFilter;
     }).toList();
@@ -189,9 +199,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                         filter,
                         style: AppTextStyles.body.copyWith(
                           fontSize: 14,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w400,
                           color: isSelected
                               ? AppColors.textPrimary
                               : AppColors.textSecondary,
@@ -271,62 +280,62 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               child: filteredTransactions.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.screenPadding,
-                ),
-                itemCount: groupedTransactions.length,
-                itemBuilder: (context, index) {
-                  final dateGroup = groupedTransactions[index];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Date header
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: 12,
-                          left: 4,
-                        ),
-                        child: Text(
-                          dateGroup['date'] as String,
-                          style: AppTextStyles.body.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppConstants.screenPadding,
                       ),
+                      itemCount: groupedTransactions.length,
+                      itemBuilder: (context, index) {
+                        final dateGroup = groupedTransactions[index];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Date header
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: 12,
+                                left: 4,
+                              ),
+                              child: Text(
+                                dateGroup['date'] as String,
+                                style: AppTextStyles.body.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
 
-                      // Transactions for this date
-                      ...List.generate(
-                        (dateGroup['transactions'] as List<Transaction>)
-                            .length,
-                            (txIndex) {
-                          final transaction = (dateGroup['transactions']
-                          as List<Transaction>)[txIndex];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: ExpenseTile(
-                              transaction: transaction,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  CupertinoPageRoute(
-                                    builder: (context) =>
-                                        TransactionDetailScreen(
-                                          transaction: transaction,
+                            // Transactions for this date
+                            ...List.generate(
+                              (dateGroup['transactions'] as List<Transaction>)
+                                  .length,
+                              (txIndex) {
+                                final transaction = (dateGroup['transactions']
+                                    as List<Transaction>)[txIndex];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: ExpenseTile(
+                                    transaction: transaction,
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        CupertinoPageRoute(
+                                          builder: (context) =>
+                                              TransactionDetailScreen(
+                                            transaction: transaction,
+                                          ),
                                         ),
+                                      );
+                                    },
                                   ),
                                 );
                               },
                             ),
-                          );
-                        },
-                      ),
 
-                      const SizedBox(height: 12),
-                    ],
-                  );
-                },
-              ),
+                            const SizedBox(height: 12),
+                          ],
+                        );
+                      },
+                    ),
             ),
           ],
         ),

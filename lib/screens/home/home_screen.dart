@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   StreamSubscription<Map<String, dynamic>>? _smsStreamSubscription;
   StreamSubscription<Transaction>? _expenseUpdateSubscription;
   StreamSubscription<Transaction>? _localAddSubscription;
+  StreamSubscription<void>? _transactionsUpdatedSubscription;
   String _selectedTransactionType = 'expense'; // 'expense' or 'credit'
 
   @override
@@ -41,6 +42,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _subscribeToBalanceUpdates();
     _subscribeToSmsStream();
     _subscribeToExpenseUpdates();
+
+    _transactionsUpdatedSubscription =
+        TransactionStorageService.onTransactionsUpdated.listen((_) {
+      unawaited(_refreshTransactions());
+    });
   }
 
   @override
@@ -50,14 +56,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _smsStreamSubscription?.cancel();
     _expenseUpdateSubscription?.cancel();
     _localAddSubscription?.cancel();
+    _transactionsUpdatedSubscription?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Refresh balance when app comes back to foreground
+      // Refresh balance and transactions when app comes back to foreground
       _refreshBalance();
+      unawaited(_refreshTransactions());
     }
   }
 
@@ -72,13 +80,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _subscribeToBalanceUpdates() {
-    _balanceUpdateSubscription = BalanceSmsParser.onBalanceUpdate.listen((data) {
+    _balanceUpdateSubscription =
+        BalanceSmsParser.onBalanceUpdate.listen((data) {
       if (mounted) {
         setState(() {
           _bankBalance = data['balance'] ?? 0.0;
           _bankName = BalanceSmsParser.getBankFullName(data['bank'] ?? '');
         });
-        debugPrint('Balance auto-updated: ${data['bank']} - Rs.${data['balance']}');
+        debugPrint(
+            'Balance auto-updated: ${data['bank']} - Rs.${data['balance']}');
       }
     });
   }
@@ -86,21 +96,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadTransactions() async {
     // 1. Load stored transactions first (fast)
     final transactions = await TransactionStorageService.getAllTransactions();
-    
+
     // 2. Load bank balance from NOTIFICATION LISTENER only
     final balanceData = await BalanceSmsParser.getLastBalance();
-    
+
     if (mounted) {
       setState(() {
         _transactions = transactions;
         if (balanceData != null) {
           _bankBalance = balanceData['balance'] ?? 0.0;
-          _bankName = BalanceSmsParser.getBankFullName(balanceData['bank'] ?? '');
+          _bankName =
+              BalanceSmsParser.getBankFullName(balanceData['bank'] ?? '');
         }
         _isLoading = false;
       });
     }
-    
+
     // NO SMS SCAN - only notification listener should handle real-time updates
   }
 
@@ -116,8 +127,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Subscribe to real-time expense updates
   void _subscribeToExpenseUpdates() {
-    _expenseUpdateSubscription = SmsNotificationListener.onExpenseUpdate.listen((transaction) {
-      debugPrint('🟢 Real-time expense event received: ${transaction.merchant} - ₹${transaction.amount}');
+    _expenseUpdateSubscription =
+        SmsNotificationListener.onExpenseUpdate.listen((transaction) {
+      debugPrint(
+          '🟢 Real-time expense event received: ${transaction.merchant} - ₹${transaction.amount}');
       if (mounted) {
         final exists = _transactions.any((t) => t.id == transaction.id);
         if (exists) return;
@@ -128,8 +141,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
 
     // Also listen for manual/local transactions added elsewhere
-    _localAddSubscription = TransactionStorageService.onTransactionAdded.listen((transaction) {
-      debugPrint('🟡 Local transaction added: ${transaction.merchant} - ₹${transaction.amount}');
+    _localAddSubscription =
+        TransactionStorageService.onTransactionAdded.listen((transaction) {
       if (mounted) {
         final exists = _transactions.any((t) => t.id == transaction.id);
         if (exists) return;
@@ -147,7 +160,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       setState(() {
         _transactions = transactions;
       });
-      debugPrint('✅ HomeScreen transactions refreshed: ${transactions.length} items');
+      debugPrint(
+          '✅ HomeScreen transactions refreshed: ${transactions.length} items');
     }
   }
 
@@ -163,19 +177,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Calculate dynamic values
     final balance = _bankBalance; // Default to 0 until bank balance is set up
     final weeklySpent = _transactions
-        .where((t) => t.type == 'expense' && DateTime.now().difference(t.date).inDays <= 7)
+        .where((t) =>
+            t.type == 'expense' &&
+            DateTime.now().difference(t.date).inDays <= 7)
         .fold(0.0, (sum, t) => sum + t.amount);
-    
+
     // Calculate weekly credits separately
     final weeklyCredits = _transactions
-        .where((t) => t.type == 'credit' && DateTime.now().difference(t.date).inDays <= 7)
+        .where((t) =>
+            t.type == 'credit' && DateTime.now().difference(t.date).inDays <= 7)
         .fold(0.0, (sum, t) => sum + t.amount);
-    
+
     // Filter transactions by type
-    final expenseTransactions = _transactions.where((t) => t.type == 'expense').toList();
-    final creditTransactions = _transactions.where((t) => t.type == 'credit').toList();
-    final displayTransactions = _selectedTransactionType == 'expense' 
-        ? expenseTransactions 
+    final expenseTransactions =
+        _transactions.where((t) => t.type == 'expense').toList();
+    final creditTransactions =
+        _transactions.where((t) => t.type == 'credit').toList();
+    final displayTransactions = _selectedTransactionType == 'expense'
+        ? expenseTransactions
         : creditTransactions;
     final recentTransactions = displayTransactions.take(3).toList();
 
@@ -205,58 +224,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Text('Welcome back!', style: AppTextStyles.h2),
                       ],
                     ),
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              // Navigate to bank setup for checking balance
-                              Navigator.of(context).push(
-                                CupertinoPageRoute(
-                                  builder: (context) => BankBalanceSetupScreen(
-                                    onComplete: () => Navigator.of(context).pop(),
-                                  ),
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () {
+                            // Navigate to bank setup for checking balance
+                            Navigator.of(context).push(
+                              CupertinoPageRoute(
+                                builder: (context) => BankBalanceSetupScreen(
+                                  onComplete: () => Navigator.of(context).pop(),
                                 ),
-                              );
-                            },
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                color: CupertinoColors.white,
-                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(
-                                CupertinoIcons.creditcard,
-                                color: AppColors.textPrimary,
-                                size: 22,
-                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              CupertinoIcons.creditcard,
+                              color: AppColors.textPrimary,
+                              size: 22,
                             ),
                           ),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                CupertinoPageRoute(
-                                  builder: (context) => const AllRemindersScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: CupertinoColors.white,
-                                borderRadius: BorderRadius.circular(12),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              CupertinoPageRoute(
+                                builder: (context) =>
+                                    const AllRemindersScreen(),
                               ),
-                              child: const Icon(
-                                CupertinoIcons.bell,
-                                color: AppColors.textPrimary,
-                                size: 22,
-                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              CupertinoIcons.bell,
+                              color: AppColors.textPrimary,
+                              size: 22,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -267,11 +287,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Padding(
                 padding: const EdgeInsets.all(AppConstants.screenPadding),
                 child: BalanceCard(
-                  balance: balance, 
-                  weeklySpent: weeklySpent, 
-                  weeklyCredits: weeklyCredits,
-                  bankName: _bankName
-                ),
+                    balance: balance,
+                    weeklySpent: weeklySpent,
+                    weeklyCredits: weeklyCredits,
+                    bankName: _bankName),
               ),
             ),
 
@@ -311,7 +330,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           onTap: () {
                             // Navigate to full history page
                             Navigator.of(context).push(
-                              CupertinoPageRoute(builder: (context) => const TransactionListScreen()),
+                              CupertinoPageRoute(
+                                  builder: (context) =>
+                                      const TransactionListScreen()),
                             );
                           },
                           child: Text(
@@ -343,7 +364,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
                                 decoration: BoxDecoration(
                                   color: _selectedTransactionType == 'expense'
                                       ? AppColors.primary
@@ -372,7 +394,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
                                 decoration: BoxDecoration(
                                   color: _selectedTransactionType == 'credit'
                                       ? AppColors.primary
@@ -410,21 +433,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: ExpenseTile(
-                        transaction: recentTransactions[index],
-                        onTap: () {
-                          Navigator.of(context).push(
-                            CupertinoPageRoute(
-                              builder: (context) => TransactionDetailScreen(
-                                transaction: recentTransactions[index],
-                              ),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ExpenseTile(
+                      transaction: recentTransactions[index],
+                      onTap: () {
+                        Navigator.of(context).push(
+                          CupertinoPageRoute(
+                            builder: (context) => TransactionDetailScreen(
+                              transaction: recentTransactions[index],
                             ),
-                          );
-                        },
-                      ),
-                    );
+                          ),
+                        );
+                      },
+                    ),
+                  );
                 }, childCount: recentTransactions.length),
               ),
             ),
